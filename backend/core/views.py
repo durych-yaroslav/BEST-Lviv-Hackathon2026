@@ -11,8 +11,23 @@ from .services import process_excel_files
 from rest_framework.pagination import PageNumberPagination
 from collections import OrderedDict
 
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework_simplejwt.views import TokenObtainPairView
+
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    def validate(self, attrs):
+        data = super().validate(attrs)
+        return {
+            "access_token": data.pop('access'),
+            "token_type": "Bearer"
+        }
+
+class CustomTokenLoginView(TokenObtainPairView):
+    serializer_class = CustomTokenObtainPairSerializer
+
 class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
+    # No auth required for registration
     permission_classes = (AllowAny,)
     serializer_class = UserRegistrationSerializer
 
