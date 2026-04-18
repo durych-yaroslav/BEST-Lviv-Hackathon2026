@@ -1,595 +1,323 @@
 """
-services.py — Data processing algorithm for land & property registry comparison.
-
-Reads two Excel files (Land registry and Property registry), merges them on
-common identifiers (Cadastral Number ↔ Cadastral Number, and EDRPOU/Tax Number),
-validates corresponding fields, and returns a list[dict] of Record objects ready
-for Django's bulk_create via the JSON schema defined in README.md.
+merge_service.py — Service layer for merging land and property registry records.
 """
 
-import logging
+from __future__ import annotations
+
 import math
-import re
+import uuid
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+import numpy as np
 import pandas as pd
 
-logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
 
-# Tolerance for comparing numeric area values (relative %)
-AREA_RELATIVE_TOLERANCE = 0.05  # 5 %
+FLOAT_TOLERANCE = 0.01
 
-# All valid problem enum strings
-VALID_PROBLEMS = frozenset(
-    {
-        "edrpou_of_land_user",
-        "land_user",
-        "location",
-        "area",
-        "date_of_state_registration_of_ownership",
-        "share_of_ownership",
-        "purpose",
-    }
+PROBLEM_EDRPOU = "edrpou_of_land_user"
+PROBLEM_LAND_USER = "land_user"
+PROBLEM_LOCATION = "location"
+PROBLEM_AREA = "area"
+PROBLEM_DATE = "date_of_state_registration_of_ownership"
+PROBLEM_SHARE = "share_of_ownership"
+PROBLEM_PURPOSE = "purpose"
+
+ALL_PROBLEMS = (
+    PROBLEM_EDRPOU,
+    PROBLEM_LAND_USER,
+    PROBLEM_LOCATION,
+    PROBLEM_AREA,
+    PROBLEM_DATE,
+    PROBLEM_SHARE,
+    PROBLEM_PURPOSE,
 )
 
 # ---------------------------------------------------------------------------
-# Column-name normalisation maps
-# ---------------------------------------------------------------------------
-# The Excel files from Ukrainian registries may have headers in Ukrainian or
-# English, or mixed.  We define a liberal mapping from *likely* column headers
-# to our canonical internal key names.  Mapping is attempted case-insensitively,
-# after stripping whitespace and collapsing multiple spaces / underscores.
-
-LAND_COLUMN_MAP: Dict[str, str] = {
-    # Ukrainian variants
-    "кадастровий номер": "cadastral_number",
-    "коатуу": "koatuu",
-    "форма власності": "form_of_ownership",
-    "цільове призначення": "purpose",
-    "місцезнаходження": "location",
-    "вид сільськогосподарських угідь": "type_of_agricultural_land",
-    "площа": "area",
-    "нормативна грошова оцінка": "average_monetary_valuation",
-    "середня грошова оцінка": "average_monetary_valuation",
-    "код єдрпоу землекористувача": "edrpou_of_land_user",
-    "єдрпоу землекористувача": "edrpou_of_land_user",
-    "землекористувач": "land_user",
-    "назва землекористувача": "land_user",
-    "частка власності": "share_of_ownership",
-    "дата державної реєстрації права власності": "date_of_state_registration_of_ownership",
-    "номер запису про право власності": "record_number_of_ownership",
-    "орган що здійснив державну реєстрацію права власності": "authority_that_performed_state_registration_of_ownership",
-    "тип": "type",
-    "підтип": "subtype",
-    # English / snake_case variants (in case headers are already in English)
-    "cadastral_number": "cadastral_number",
-    "cadastral number": "cadastral_number",
-    "koatuu": "koatuu",
-    "form_of_ownership": "form_of_ownership",
-    "form of ownership": "form_of_ownership",
-    "purpose": "purpose",
-    "location": "location",
-    "type_of_agricultural_land": "type_of_agricultural_land",
-    "type of agricultural land": "type_of_agricultural_land",
-    "area": "area",
-    "average_monetary_valuation": "average_monetary_valuation",
-    "average monetary valuation": "average_monetary_valuation",
-    "edrpou_of_land_user": "edrpou_of_land_user",
-    "edrpou of land user": "edrpou_of_land_user",
-    "edrpou": "edrpou_of_land_user",
-    "land_user": "land_user",
-    "land user": "land_user",
-    "share_of_ownership": "share_of_ownership",
-    "share of ownership": "share_of_ownership",
-    "date_of_state_registration_of_ownership": "date_of_state_registration_of_ownership",
-    "date of state registration of ownership": "date_of_state_registration_of_ownership",
-    "record_number_of_ownership": "record_number_of_ownership",
-    "record number of ownership": "record_number_of_ownership",
-    "authority_that_performed_state_registration_of_ownership": "authority_that_performed_state_registration_of_ownership",
-    "authority that performed state registration of ownership": "authority_that_performed_state_registration_of_ownership",
-    "type": "type",
-    "subtype": "subtype",
-}
-
-PROPERTY_COLUMN_MAP: Dict[str, str] = {
-    # Ukrainian variants
-    "податковий номер": "tax_number_of_pp",
-    "іпн": "tax_number_of_pp",
-    "рнокпп": "tax_number_of_pp",
-    "назва платника податків": "name_of_the_taxpayer",
-    "платник податків": "name_of_the_taxpayer",
-    "тип об'єкта": "type_of_object",
-    "тип обєкта": "type_of_object",
-    "адреса об'єкта": "address_of_the_object",
-    "адреса обєкта": "address_of_the_object",
-    "місцезнаходження": "address_of_the_object",
-    "дата державної реєстрації права власності": "date_of_state_registration_of_ownership",
-    "дата державної реєстрації обтяження права власності": "date_of_state_registration_of_pledge_of_ownership",
-    "загальна площа": "total_area",
-    "площа": "total_area",
-    "вид спільної власності": "type_of_joint_ownership",
-    "частка власності": "share_of_ownership",
-    "кадастровий номер": "cadastral_number",
-    "код єдрпоу": "tax_number_of_pp",
-    "єдрпоу": "tax_number_of_pp",
-    # English / snake_case variants
-    "tax_number_of_pp": "tax_number_of_pp",
-    "tax number of pp": "tax_number_of_pp",
-    "tax number": "tax_number_of_pp",
-    "name_of_the_taxpayer": "name_of_the_taxpayer",
-    "name of the taxpayer": "name_of_the_taxpayer",
-    "type_of_object": "type_of_object",
-    "type of object": "type_of_object",
-    "address_of_the_object": "address_of_the_object",
-    "address of the object": "address_of_the_object",
-    "date_of_state_registration_of_ownership": "date_of_state_registration_of_ownership",
-    "date of state registration of ownership": "date_of_state_registration_of_ownership",
-    "date_of_state_registration_of_pledge_of_ownership": "date_of_state_registration_of_pledge_of_ownership",
-    "date of state registration of pledge of ownership": "date_of_state_registration_of_pledge_of_ownership",
-    "total_area": "total_area",
-    "total area": "total_area",
-    "type_of_joint_ownership": "type_of_joint_ownership",
-    "type of joint ownership": "type_of_joint_ownership",
-    "share_of_ownership": "share_of_ownership",
-    "share of ownership": "share_of_ownership",
-    "cadastral_number": "cadastral_number",
-    "cadastral number": "cadastral_number",
-    "edrpou": "tax_number_of_pp",
-    "edrpou_of_land_user": "tax_number_of_pp",
-}
-
-# Keys that MUST appear in the output dicts (with None as fallback)
-LAND_DATA_KEYS = [
-    "cadastral_number",
-    "koatuu",
-    "form_of_ownership",
-    "purpose",
-    "location",
-    "type_of_agricultural_land",
-    "area",
-    "average_monetary_valuation",
-    "edrpou_of_land_user",
-    "land_user",
-    "share_of_ownership",
-    "date_of_state_registration_of_ownership",
-    "record_number_of_ownership",
-    "authority_that_performed_state_registration_of_ownership",
-    "type",
-    "subtype",
-]
-
-PROPERTY_DATA_KEYS = [
-    "tax_number_of_pp",
-    "name_of_the_taxpayer",
-    "type_of_object",
-    "address_of_the_object",
-    "date_of_state_registration_of_ownership",
-    "date_of_state_registration_of_pledge_of_ownership",
-    "total_area",
-    "type_of_joint_ownership",
-    "share_of_ownership",
-]
-
-
-# ---------------------------------------------------------------------------
-# Helper utilities
+# Low-level helpers
 # ---------------------------------------------------------------------------
 
 
-def _normalise_header(header: str) -> str:
-    """Lowercase, strip, collapse whitespace / underscores to single space."""
-    h = str(header).strip().lower()
-    h = re.sub(r"[_\s]+", " ", h)
-    return h
-
-
-def _rename_columns(df: pd.DataFrame, col_map: Dict[str, str]) -> pd.DataFrame:
-    """Rename DataFrame columns using a case-insensitive mapping."""
-    rename_dict: Dict[str, str] = {}
-    for col in df.columns:
-        normalised = _normalise_header(col)
-        if normalised in col_map:
-            rename_dict[col] = col_map[normalised]
-    return df.rename(columns=rename_dict)
-
-
-def _safe_value(val: Any) -> Any:
-    """Convert pandas NaN / NaT to None for JSON serialisation;
-    convert numpy types to native Python types."""
-    if val is None:
+def _norm_str(value: Any) -> Optional[str]:
+    """Return a lowercased, stripped string or None."""
+    if value is None:
         return None
-    if isinstance(val, float) and (math.isnan(val) or math.isinf(val)):
-        return None
-    # numpy int / float → Python int / float
-    try:
-        import numpy as np
-
-        if isinstance(val, (np.integer,)):
-            return int(val)
-        if isinstance(val, (np.floating,)):
-            return float(val)
-        if isinstance(val, (np.bool_,)):
-            return bool(val)
-    except ImportError:
-        pass
-    # Timestamp → ISO-8601 string
-    if isinstance(val, pd.Timestamp):
-        return val.isoformat()
-    return val
+    s = str(value).strip()
+    return s.lower() if s else None
 
 
-def _safe_str(val: Any) -> Optional[str]:
-    """Return a stripped string or None."""
-    v = _safe_value(val)
-    if v is None:
-        return None
-    return str(v).strip()
-
-
-def _safe_float(val: Any) -> Optional[float]:
+def _norm_float(value: Any) -> Optional[float]:
     """Return a float or None."""
-    v = _safe_value(val)
-    if v is None:
+    if value is None:
         return None
     try:
-        return float(v)
+        return float(value)
     except (ValueError, TypeError):
         return None
 
 
-def _build_dict(row: pd.Series, keys: List[str]) -> Dict[str, Any]:
-    """Build an output dict from a row, ensuring all required keys are present
-    and NaN values are replaced with None."""
-    result: Dict[str, Any] = {}
-    for key in keys:
-        result[key] = _safe_value(row.get(key))
-    return result
-
-
-def _normalise_str_for_comparison(val: Any) -> Optional[str]:
-    """Normalise a value to a comparable lowercase stripped string."""
-    s = _safe_str(val)
-    if s is None:
+def _norm_date(value: Any) -> Optional[datetime]:
+    """Parse an ISO-format date string / datetime; return None on failure."""
+    if value is None:
         return None
-    return re.sub(r"\s+", " ", s).strip().lower()
-
-
-def _normalise_edrpou(val: Any) -> Optional[str]:
-    """Strip leading zeros, whitespace, and special chars from an EDRPOU / tax number."""
-    s = _safe_str(val)
-    if s is None:
-        return None
-    # Keep only digits
-    digits = re.sub(r"\D", "", s)
-    return digits if digits else None
-
-
-def _dates_differ(val_a: Any, val_b: Any) -> bool:
-    """Compare two date values; return True if they meaningfully differ."""
-    a = _safe_value(val_a)
-    b = _safe_value(val_b)
-    if a is None and b is None:
-        return False
-    if a is None or b is None:
-        return True
-    # Try to parse both as timestamps for date-level comparison
+    if isinstance(value, datetime):
+        return value
     try:
-        ts_a = pd.Timestamp(a)
-        ts_b = pd.Timestamp(b)
-        return ts_a.date() != ts_b.date()
-    except Exception:
-        # Fallback to string comparison
-        return _normalise_str_for_comparison(a) != _normalise_str_for_comparison(b)
+        return datetime.fromisoformat(str(value).strip())
+    except (ValueError, TypeError):
+        return None
 
 
-def _areas_differ(land_area: Any, prop_area: Any) -> bool:
-    """Return True if the two area values differ beyond the tolerance threshold."""
-    a = _safe_float(land_area)
-    b = _safe_float(prop_area)
-    if a is None and b is None:
+def _norm_cadastral(value: Any) -> Optional[str]:
+    """Normalise cadastral number: lowercase, strip, collapse inner spaces."""
+    s = _norm_str(value)
+    if s is None:
+        return None
+    return " ".join(s.split())
+
+
+def _norm_tax(value: Any) -> Optional[str]:
+    """Normalise tax / EDRPOU number: digits only."""
+    if value is None:
+        return None
+    digits = "".join(c for c in str(value) if c.isdigit())
+    return digits or None
+
+
+# ---------------------------------------------------------------------------
+# Field comparison helpers
+# ---------------------------------------------------------------------------
+
+
+def _str_mismatch(a: Any, b: Any) -> bool:
+    """True when two string-like values meaningfully differ."""
+    na, nb = _norm_str(a), _norm_str(b)
+    if na is None and nb is None:
         return False
-    if a is None or b is None:
+    if na is None or nb is None:
         return True
-    if a == 0 and b == 0:
+    return na != nb
+
+
+def _float_mismatch(a: Any, b: Any) -> bool:
+    """True when two numeric values differ beyond FLOAT_TOLERANCE."""
+    fa, fb = _norm_float(a), _norm_float(b)
+    if fa is None and fb is None:
         return False
-    denominator = max(abs(a), abs(b))
-    if denominator == 0:
-        return a != b
-    return abs(a - b) / denominator > AREA_RELATIVE_TOLERANCE
+    if fa is None or fb is None:
+        return True
+    return abs(fa - fb) > FLOAT_TOLERANCE
+
+
+def _date_mismatch(a: Any, b: Any) -> bool:
+    """True when two date values differ (or either fails to parse)."""
+    da, db = _norm_date(a), _norm_date(b)
+    if da is None and db is None:
+        return False
+    if da is None or db is None:
+        # One side present, other missing or unparseable → mismatch
+        return True
+    return da.date() != db.date()
 
 
 # ---------------------------------------------------------------------------
-# Main processing function
+# Problem detection
 # ---------------------------------------------------------------------------
 
 
-def process_excel_files(land_file, property_file) -> List[Dict[str, Any]]:
+def _detect_problems(land: Dict[str, Any], prop: Dict[str, Any]) -> List[str]:
+    """Compare corresponding fields and return a list of problem enum strings."""
+    problems: List[str] = []
+
+    checks = [
+        (PROBLEM_EDRPOU,   _str_mismatch,   land.get("edrpou_of_land_user"),                    prop.get("tax_number_of_pp")),
+        (PROBLEM_LAND_USER,_str_mismatch,   land.get("land_user"),                               prop.get("name_of_the_taxpayer")),
+        (PROBLEM_LOCATION, _str_mismatch,   land.get("location"),                                prop.get("address_of_the_object")),
+        (PROBLEM_AREA,     _float_mismatch, land.get("area"),                                    prop.get("total_area")),
+        (PROBLEM_DATE,     _date_mismatch,  land.get("date_of_state_registration_of_ownership"), prop.get("date_of_state_registration_of_ownership")),
+        (PROBLEM_SHARE,    _float_mismatch, land.get("share_of_ownership"),                      prop.get("share_of_ownership")),
+        (PROBLEM_PURPOSE,  _str_mismatch,   land.get("purpose"),                                 prop.get("type_of_object")),
+    ]
+
+    for problem_key, comparator, land_val, prop_val in checks:
+        try:
+            if comparator(land_val, prop_val):
+                problems.append(problem_key)
+        except Exception:
+            problems.append(problem_key)
+
+    return problems
+
+
+# ---------------------------------------------------------------------------
+# Matching logic
+# ---------------------------------------------------------------------------
+
+
+def _build_property_index(
+    property_rows: List[Dict[str, Any]],
+) -> tuple[Dict[str, List[Dict]], Dict[str, List[Dict]]]:
     """
-    Read two Excel files (land registry & property registry), merge them on
-    common identifiers, validate for data inconsistencies, and return a list
-    of Record dicts matching the API schema.
+    Build two lookup indexes from property rows:
+      - by normalised cadastral_number
+      - by normalised tax_number_of_pp (fallback)
+    """
+    by_cadastral: Dict[str, List[Dict]] = {}
+    by_tax: Dict[str, List[Dict]] = {}
+
+    for row in property_rows:
+        cad = _norm_cadastral(row.get("cadastral_number"))
+        if cad:
+            by_cadastral.setdefault(cad, []).append(row)
+
+        tax = _norm_tax(row.get("tax_number_of_pp"))
+        if tax:
+            by_tax.setdefault(tax, []).append(row)
+
+    return by_cadastral, by_tax
+
+
+def _find_matches(
+    land: Dict[str, Any],
+    by_cadastral: Dict[str, List[Dict]],
+    by_tax: Dict[str, List[Dict]],
+) -> List[Dict[str, Any]]:
+    """Return all property rows matching this land row."""
+    cad = _norm_cadastral(land.get("cadastral_number"))
+    if cad and cad in by_cadastral:
+        return by_cadastral[cad]
+
+    tax = _norm_tax(land.get("edrpou_of_land_user"))
+    if tax and tax in by_tax:
+        return by_tax[tax]
+
+    return []
+
+
+# ---------------------------------------------------------------------------
+# Record builder
+# ---------------------------------------------------------------------------
+
+
+def _make_record(
+    report_id: str,
+    land: Dict[str, Any],
+    prop: Optional[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """Construct a single output record."""
+    problems: List[str] = (
+        _detect_problems(land, prop) if prop is not None else list(ALL_PROBLEMS)
+    )
+
+    return {
+        "report_id": report_id,
+        "record_id": str(uuid.uuid4()),
+        "problems": problems,
+        "land_data": dict(land),
+        "property_data": dict(prop) if prop is not None else {},
+    }
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
+
+def merge_records(
+    land_rows: list,
+    property_rows: list,
+    report_id: str,
+) -> list:
+    """
+    Merge land and property rows into unified report records.
+
+    Matching priority:
+      1. cadastral_number (exact, normalised)
+      2. edrpou_of_land_user ↔ tax_number_of_pp (digits-only normalised)
+
+    One land row may produce multiple records if multiple property rows match.
+    Unmatched land rows produce a record with property_data = None.
 
     Parameters
     ----------
-    land_file : InMemoryUploadedFile
-        The uploaded Excel file with land registry data.
-    property_file : InMemoryUploadedFile
-        The uploaded Excel file with property registry data.
+    land_rows : list[dict]
+        Rows parsed from the land registry XLSX.
+    property_rows : list[dict]
+        Rows parsed from the property registry XLSX.
+    report_id : str
+        UUID string of the parent report.
 
     Returns
     -------
     list[dict]
-        Each dict has keys: ``problems``, ``land_data``, ``property_data``.
+        Records matching the API schema.
     """
-
-    # ------------------------------------------------------------------
-    # 1. Read Excel files into DataFrames
-    # ------------------------------------------------------------------
-    try:
-        land_df = pd.read_excel(land_file, engine="openpyxl")
-    except Exception as exc:
-        logger.error("Failed to parse land Excel file: %s", exc)
-        raise ValueError(f"Unable to read the land Excel file: {exc}") from exc
-
-    try:
-        prop_df = pd.read_excel(property_file, engine="openpyxl")
-    except Exception as exc:
-        logger.error("Failed to parse property Excel file: %s", exc)
-        raise ValueError(f"Unable to read the property Excel file: {exc}") from exc
-
-    # ------------------------------------------------------------------
-    # 2. Normalise column headers
-    # ------------------------------------------------------------------
-    land_df = _rename_columns(land_df, LAND_COLUMN_MAP)
-    prop_df = _rename_columns(prop_df, PROPERTY_COLUMN_MAP)
-
-    # Drop completely empty rows
-    land_df = land_df.dropna(how="all").reset_index(drop=True)
-    prop_df = prop_df.dropna(how="all").reset_index(drop=True)
-
-    logger.info(
-        "Loaded %d land rows and %d property rows",
-        len(land_df),
-        len(prop_df),
-    )
-
-    # ------------------------------------------------------------------
-    # 3. Determine merge strategy & merge
-    # ------------------------------------------------------------------
-    # Strategy A: merge on cadastral_number (present in both)
-    # Strategy B: merge on EDRPOU/tax_number (land.edrpou_of_land_user ↔ prop.tax_number_of_pp)
-    # We attempt A first; if either DF lacks the column we fall back to B,
-    # and finally to a cross-join if no common key exists.
-
-    land_has_cadastral = "cadastral_number" in land_df.columns
-    prop_has_cadastral = "cadastral_number" in prop_df.columns
-    land_has_edrpou = "edrpou_of_land_user" in land_df.columns
-    prop_has_tax = "tax_number_of_pp" in prop_df.columns
-
-    merged_df: pd.DataFrame
-
-    if land_has_cadastral and prop_has_cadastral:
-        # Normalise cadastral numbers for matching
-        land_df["_merge_cadastral"] = (
-            land_df["cadastral_number"].astype(str).str.strip().str.lower()
-        )
-        prop_df["_merge_cadastral"] = (
-            prop_df["cadastral_number"].astype(str).str.strip().str.lower()
-        )
-
-        merged_df = pd.merge(
-            land_df,
-            prop_df,
-            on="_merge_cadastral",
-            how="outer",
-            suffixes=("_land", "_prop"),
-            indicator=True,
-        )
-        merged_df.drop(columns=["_merge_cadastral"], inplace=True, errors="ignore")
-
-    elif land_has_edrpou and prop_has_tax:
-        land_df["_merge_edrpou"] = land_df["edrpou_of_land_user"].apply(
-            _normalise_edrpou
-        )
-        prop_df["_merge_edrpou"] = prop_df["tax_number_of_pp"].apply(
-            _normalise_edrpou
-        )
-
-        merged_df = pd.merge(
-            land_df,
-            prop_df,
-            on="_merge_edrpou",
-            how="outer",
-            suffixes=("_land", "_prop"),
-            indicator=True,
-        )
-        merged_df.drop(columns=["_merge_edrpou"], inplace=True, errors="ignore")
-
-    else:
-        # Fallback: treat every land row + every property row independently
-        logger.warning(
-            "No common merge key found between the two files. "
-            "Processing each file independently."
-        )
-        land_df["_merge_key"] = range(len(land_df))
-        prop_df["_merge_key"] = range(len(prop_df))
-        # Pad the shorter DF so they align 1-to-1 as much as possible
-        max_len = max(len(land_df), len(prop_df))
-        if len(land_df) < max_len:
-            extra = pd.DataFrame(
-                {"_merge_key": range(len(land_df), max_len)}
-            )
-            land_df = pd.concat([land_df, extra], ignore_index=True)
-        if len(prop_df) < max_len:
-            extra = pd.DataFrame(
-                {"_merge_key": range(len(prop_df), max_len)}
-            )
-            prop_df = pd.concat([prop_df, extra], ignore_index=True)
-
-        merged_df = pd.merge(
-            land_df,
-            prop_df,
-            on="_merge_key",
-            how="outer",
-            suffixes=("_land", "_prop"),
-            indicator=True,
-        )
-        merged_df.drop(columns=["_merge_key"], inplace=True, errors="ignore")
-
-    # ------------------------------------------------------------------
-    # 4. Resolve suffixed columns back to canonical names
-    # ------------------------------------------------------------------
-    # After an outer merge, columns that existed in both DFs get _land / _prop
-    # suffixes.  We need to resolve them so that land_data and property_data
-    # each get the correct value.
-
-    def _resolve_col(df: pd.DataFrame, key: str, suffix: str) -> pd.Series:
-        """Return the column for *key* with the given *suffix*, falling back
-        to the un-suffixed column if the suffixed one doesn't exist."""
-        suffixed = f"{key}_{suffix}"
-        if suffixed in df.columns:
-            return df[suffixed]
-        if key in df.columns:
-            return df[key]
-        return pd.Series([None] * len(df), dtype=object)
-
-    # ------------------------------------------------------------------
-    # 5. Build output records with validation
-    # ------------------------------------------------------------------
+    by_cadastral, by_tax = _build_property_index(property_rows)
+    matched_prop_ids: set[int] = set()
     records: List[Dict[str, Any]] = []
 
-    for idx in range(len(merged_df)):
-        row = merged_df.iloc[idx]
-        merge_indicator = row.get("_merge", "both")
+    for land in land_rows:
+        try:
+            matches = _find_matches(land, by_cadastral, by_tax)
+        except Exception:
+            matches = []
 
-        problems: List[str] = []
+        if matches:
+            for prop in matches:
+                matched_prop_ids.add(id(prop))
+                try:
+                    records.append(_make_record(report_id, land, prop))
+                except Exception:
+                    records.append(_make_record(report_id, land, None))
+        else:
+            records.append(_make_record(report_id, land, None))
 
-        # --- Build land_data dict ---
-        land_row: Dict[str, Any] = {}
-        for key in LAND_DATA_KEYS:
-            col_val = _resolve_col(merged_df, key, "land").iloc[idx]
-            land_row[key] = col_val
-        land_data = {k: _safe_value(v) for k, v in land_row.items()}
-
-        # --- Build property_data dict ---
-        prop_row: Dict[str, Any] = {}
-        for key in PROPERTY_DATA_KEYS:
-            col_val = _resolve_col(merged_df, key, "prop").iloc[idx]
-            prop_row[key] = col_val
-        property_data = {k: _safe_value(v) for k, v in prop_row.items()}
-
-        # ---------------------------------------------------------------
-        # Validation checks (only when both sides have data)
-        # ---------------------------------------------------------------
-
-        has_land = merge_indicator in ("left_only", "both")
-        has_prop = merge_indicator in ("right_only", "both")
-
-        if has_land and has_prop:
-            # 1) EDRPOU / Tax number mismatch
-            edrpou_land = _normalise_edrpou(land_data.get("edrpou_of_land_user"))
-            edrpou_prop = _normalise_edrpou(property_data.get("tax_number_of_pp"))
-            if edrpou_land and edrpou_prop and edrpou_land != edrpou_prop:
-                problems.append("edrpou_of_land_user")
-            elif (edrpou_land is None) != (edrpou_prop is None):
-                # One side missing
-                problems.append("edrpou_of_land_user")
-
-            # 2) Land user / taxpayer name mismatch
-            name_land = _normalise_str_for_comparison(land_data.get("land_user"))
-            name_prop = _normalise_str_for_comparison(
-                property_data.get("name_of_the_taxpayer")
-            )
-            if name_land and name_prop and name_land != name_prop:
-                problems.append("land_user")
-            elif (name_land is None) != (name_prop is None):
-                problems.append("land_user")
-
-            # 3) Location mismatch
-            loc_land = _normalise_str_for_comparison(land_data.get("location"))
-            loc_prop = _normalise_str_for_comparison(
-                property_data.get("address_of_the_object")
-            )
-            if loc_land and loc_prop and loc_land != loc_prop:
-                problems.append("location")
-            elif (loc_land is None) != (loc_prop is None):
-                problems.append("location")
-
-            # 4) Area deviation
-            if _areas_differ(land_data.get("area"), property_data.get("total_area")):
-                problems.append("area")
-
-            # 5) Date of state registration of ownership mismatch
-            if _dates_differ(
-                land_data.get("date_of_state_registration_of_ownership"),
-                property_data.get("date_of_state_registration_of_ownership"),
-            ):
-                problems.append("date_of_state_registration_of_ownership")
-
-            # 6) Share of ownership mismatch
-            share_land = _safe_float(land_data.get("share_of_ownership"))
-            share_prop = _safe_float(property_data.get("share_of_ownership"))
-            if share_land is not None and share_prop is not None:
-                if abs(share_land - share_prop) > 1e-6:
-                    problems.append("share_of_ownership")
-            elif (share_land is None) != (share_prop is None):
-                problems.append("share_of_ownership")
-
-            # 7) Purpose mismatch (land purpose vs property type_of_object)
-            purpose_land = _normalise_str_for_comparison(land_data.get("purpose"))
-            purpose_prop = _normalise_str_for_comparison(
-                property_data.get("type_of_object")
-            )
-            if purpose_land and purpose_prop and purpose_land != purpose_prop:
-                problems.append("purpose")
-            elif (purpose_land is None) != (purpose_prop is None):
-                problems.append("purpose")
-
-        elif has_land and not has_prop:
-            # Land row without matching property — flag all property-relevant fields
-            problems.extend(
-                [
-                    "edrpou_of_land_user",
-                    "land_user",
-                    "location",
-                    "area",
-                    "date_of_state_registration_of_ownership",
-                    "share_of_ownership",
-                    "purpose",
-                ]
-            )
-
-        elif has_prop and not has_land:
-            # Property row without matching land — flag all land-relevant fields
-            problems.extend(
-                [
-                    "edrpou_of_land_user",
-                    "land_user",
-                    "location",
-                    "area",
-                    "date_of_state_registration_of_ownership",
-                    "share_of_ownership",
-                    "purpose",
-                ]
-            )
-
-        # Ensure only valid enums
-        problems = [p for p in problems if p in VALID_PROBLEMS]
-
-        records.append(
-            {
-                "problems": problems,
-                "land_data": land_data,
-                "property_data": property_data,
-            }
-        )
-
-    logger.info("Processed %d total records (%d with problems)",
-                len(records),
-                sum(1 for r in records if r["problems"]))
+    # Property rows that had no matching land row
+    for prop in property_rows:
+        if id(prop) not in matched_prop_ids:
+            empty_land: Dict[str, Any] = {}
+            records.append(_make_record(report_id, empty_land, prop))
 
     return records
+
+
+# ---------------------------------------------------------------------------
+# Excel parsing
+# ---------------------------------------------------------------------------
+
+
+def _clean_for_json(row: dict) -> dict:
+    """Replace NaN / NaT / numpy types with JSON-safe Python types."""
+    cleaned = {}
+    for k, v in row.items():
+        if isinstance(v, float) and math.isnan(v):
+            cleaned[k] = None
+        elif isinstance(v, pd.Timestamp):
+            cleaned[k] = v.isoformat()
+        elif isinstance(v, (np.integer,)):
+            cleaned[k] = int(v)
+        elif isinstance(v, (np.floating,)):
+            cleaned[k] = None if np.isnan(v) else float(v)
+        else:
+            cleaned[k] = v
+    return cleaned
+
+
+def process_excel_files(land_file, property_file) -> list:
+    """
+    Parse two .xlsx uploads and return a list of merged record dicts.
+
+    Each dict contains keys: problems, land_data, property_data.
+    """
+    land_df = pd.read_excel(land_file, engine="openpyxl")
+    property_df = pd.read_excel(property_file, engine="openpyxl")
+
+    land_rows = [_clean_for_json(r) for r in land_df.to_dict(orient="records")]
+    property_rows = [_clean_for_json(r) for r in property_df.to_dict(orient="records")]
+
+    # report_id placeholder — the view assigns the real DB id
+    return merge_records(land_rows, property_rows, report_id="")
