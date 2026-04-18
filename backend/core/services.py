@@ -555,40 +555,180 @@ def merge_records(
 
 # ---------------------------------------------------------------------------
 # Excel column mappings — Ukrainian header → English API key
+# Multiple variations per target to handle different spreadsheet formats.
 # ---------------------------------------------------------------------------
 
-LAND_COLUMN_MAP: Dict[str, str] = {
-    "Кадастровий номер": "cadastral_number",
+# All known variations → target English key
+LAND_COLUMN_ALIASES: Dict[str, str] = {
+    "кадастровий номер": "cadastral_number",
+    "кадастровий №": "cadastral_number",
+    "кадастровийномер": "cadastral_number",
     "koatuu": "koatuu",
-    "КОАТУУ": "koatuu",
-    "Форма власності": "form_of_ownership",
-    "Цільове призначення": "purpose",
-    "Місцерозташування": "location",
-    "Вид с/г угідь": "type_of_agricultural_land",
-    "Площа, га": "area",
-    "Площа": "area",
-    "Усереднена нормативно грошова оцінка": "average_monetary_valuation",
-    "ЄДРПОУ землекористувача": "edrpou_of_land_user",
-    "Землекористувач": "land_user",
-    "Частка володіння": "share_of_ownership",
-    "Дата державної реєстрації права власності": "date_of_state_registration_of_ownership",
-    "Номер запису про право власності": "record_number_of_ownership",
-    "Орган, що здійснив державну реєстрацію права власності": "authority_that_performed_state_registration_of_ownership",
-    "Тип": "type",
-    "Підтип": "subtype",
+    "коатуу": "koatuu",
+    "код коатуу": "koatuu",
+    "форма власності": "form_of_ownership",
+    "формавласності": "form_of_ownership",
+    "цільове призначення": "purpose",
+    "цілеве призначення": "purpose",
+    "призначення": "purpose",
+    "місцерозташування": "location",
+    "місце розташування": "location",
+    "адреса": "location",
+    "вид с/г угідь": "type_of_agricultural_land",
+    "вид сільськогосподарських угідь": "type_of_agricultural_land",
+    "площа, га": "area",
+    "площа га": "area",
+    "площа": "area",
+    "усереднена нормативно грошова оцінка": "average_monetary_valuation",
+    "усереднена нормативна грошова оцінка": "average_monetary_valuation",
+    "нормативна грошова оцінка": "average_monetary_valuation",
+    "єдрпоу землекористувача": "edrpou_of_land_user",
+    "єдрпоу": "edrpou_of_land_user",
+    "код єдрпоу землекористувача": "edrpou_of_land_user",
+    "код єдрпоу": "edrpou_of_land_user",
+    "землекористувач": "land_user",
+    "назва землекористувача": "land_user",
+    "найменування землекористувача": "land_user",
+    "частка володіння": "share_of_ownership",
+    "частка власності": "share_of_ownership",
+    "дата державної реєстрації права власності": "date_of_state_registration_of_ownership",
+    "дата реєстрації права власності": "date_of_state_registration_of_ownership",
+    "дата реєстрації": "date_of_state_registration_of_ownership",
+    "номер запису про право власності": "record_number_of_ownership",
+    "номер запису": "record_number_of_ownership",
+    "орган, що здійснив державну реєстрацію права власності": "authority_that_performed_state_registration_of_ownership",
+    "орган що здійснив державну реєстрацію права власності": "authority_that_performed_state_registration_of_ownership",
+    "орган реєстрації": "authority_that_performed_state_registration_of_ownership",
+    "тип": "type",
+    "підтип": "subtype",
 }
 
-PROPERTY_COLUMN_MAP: Dict[str, str] = {
-    "ІПН платника податку": "tax_number_of_pp",
-    "Найменування платника податку": "name_of_the_taxpayer",
-    "Тип об'єкта": "type_of_object",
-    "Адреса об'єкта": "address_of_the_object",
-    "Дата державної реєстрації права власності": "date_of_state_registration_of_ownership",
-    "Дата державної реєстрації обтяження права власності": "date_of_state_registration_of_pledge_of_ownership",
-    "Загальна площа": "total_area",
-    "Тип спільної власності": "type_of_joint_ownership",
-    "Частка володіння": "share_of_ownership",
+PROPERTY_COLUMN_ALIASES: Dict[str, str] = {
+    # --- tax_number_of_pp ---
+    "іпн платника податку": "tax_number_of_pp",
+    "іпн платника": "tax_number_of_pp",
+    "іпн": "tax_number_of_pp",
+    "податковий номер пп": "tax_number_of_pp",
+    "податковий номер": "tax_number_of_pp",
+    "ідентифікаційний код": "tax_number_of_pp",
+    "ідентифікаційний номер": "tax_number_of_pp",
+    # --- name_of_the_taxpayer ---
+    "найменування платника податку": "name_of_the_taxpayer",
+    "найменування платника": "name_of_the_taxpayer",
+    "назва платника податку": "name_of_the_taxpayer",
+    "назва платника": "name_of_the_taxpayer",
+    "платник податку": "name_of_the_taxpayer",
+    "платник": "name_of_the_taxpayer",
+    "піб": "name_of_the_taxpayer",
+    "піб платника": "name_of_the_taxpayer",
+    # --- type_of_object ---
+    "тип об'єкта": "type_of_object",
+    "тип обєкта": "type_of_object",
+    "тип об єкта": "type_of_object",
+    "вид об'єкта": "type_of_object",
+    # --- address_of_the_object ---
+    "адреса об'єкта": "address_of_the_object",
+    "адреса обєкта": "address_of_the_object",
+    "адреса об єкта": "address_of_the_object",
+    "адреса": "address_of_the_object",
+    "місцезнаходження об'єкта": "address_of_the_object",
+    # --- date_of_state_registration_of_ownership ---
+    "дата державної реєстрації права власності": "date_of_state_registration_of_ownership",
+    "дата реєстрації права власності": "date_of_state_registration_of_ownership",
+    "дата держ реєстр права влас": "date_of_state_registration_of_ownership",
+    "дата держ реєстрації права власності": "date_of_state_registration_of_ownership",
+    "дата реєстрації": "date_of_state_registration_of_ownership",
+    # --- date_of_state_registration_of_pledge_of_ownership ---
+    "дата державної реєстрації обтяження права власності": "date_of_state_registration_of_pledge_of_ownership",
+    "дата держ реєстр прін права влас": "date_of_state_registration_of_pledge_of_ownership",
+    "дата держ реєстр обтяження права власності": "date_of_state_registration_of_pledge_of_ownership",
+    "дата реєстрації обтяження": "date_of_state_registration_of_pledge_of_ownership",
+    "дата обтяження": "date_of_state_registration_of_pledge_of_ownership",
+    "дата держ реєстр прин права влас": "date_of_state_registration_of_pledge_of_ownership",
+    # --- total_area ---
+    "загальна площа": "total_area",
+    "загальна площ": "total_area",
+    "площа": "total_area",
+    "площа об'єкта": "total_area",
+    # --- type_of_joint_ownership ---
+    "тип спільної власності": "type_of_joint_ownership",
+    "вид спільної власності": "type_of_joint_ownership",
+    "вид спіль ної власності": "type_of_joint_ownership",
+    "вид спільн власності": "type_of_joint_ownership",
+    "спільна власність": "type_of_joint_ownership",
+    "вид спіль нoї власності": "type_of_joint_ownership",
+    # --- share_of_ownership ---
+    "частка володіння": "share_of_ownership",
+    "частка власності": "share_of_ownership",
+    "розмір частки у праві спільної власності": "share_of_ownership",
+    "розмір частки": "share_of_ownership",
+    "частка у праві спільної власності": "share_of_ownership",
+    "розмір частки у праві спільн власності": "share_of_ownership",
 }
+
+
+def _normalize_header(header: str) -> str:
+    """Normalize a column header for fuzzy matching.
+
+    Steps: lowercase → strip → remove dots/commas (abbreviation markers) →
+    normalize quotes → collapse whitespace.
+    """
+    h = str(header).strip().lower()
+    # Remove dots & commas that appear in abbreviated headers like "держ." or "реєстр."
+    h = h.replace(".", " ").replace(",", " ")
+    # Normalize quotes/apostrophes
+    h = h.replace("\u2018", "'").replace("\u2019", "'").replace("`", "'")
+    h = h.replace("\u00ab", "").replace("\u00bb", "")
+    # Collapse whitespace
+    h = " ".join(h.split())
+    return h
+
+
+def _smart_rename_columns(df: pd.DataFrame, aliases: Dict[str, str]) -> pd.DataFrame:
+    """
+    Rename DataFrame columns using fuzzy header matching.
+
+    1. Normalize both the actual column headers and the alias keys.
+    2. Match normalized headers to aliases.
+    3. If no exact normalized match, try substring matching.
+    """
+    rename_map: Dict[str, str] = {}
+    used_targets: set = set()  # Prevent duplicate mappings
+
+    # Build normalized alias lookup
+    norm_aliases: Dict[str, str] = {}
+    for alias_key, target in aliases.items():
+        norm_aliases[_normalize_header(alias_key)] = target
+
+    for col in df.columns:
+        norm_col = _normalize_header(col)
+
+        # 1. Exact normalized match
+        if norm_col in norm_aliases:
+            target = norm_aliases[norm_col]
+            if target not in used_targets:
+                rename_map[col] = target
+                used_targets.add(target)
+                continue
+
+        # 2. Substring match — col header contains an alias key (or vice versa)
+        best_match = None
+        best_len = 0
+        for norm_alias, target in norm_aliases.items():
+            if target in used_targets:
+                continue
+            if norm_alias in norm_col or norm_col in norm_alias:
+                # Prefer longer alias matches (more specific)
+                if len(norm_alias) > best_len:
+                    best_match = target
+                    best_len = len(norm_alias)
+
+        if best_match and best_match not in used_targets:
+            rename_map[col] = best_match
+            used_targets.add(best_match)
+
+    df = df.rename(columns=rename_map)
+    return df
 
 
 # ---------------------------------------------------------------------------
@@ -601,7 +741,11 @@ def _clean_for_json(row: dict) -> dict:
     import datetime as _dt
     cleaned = {}
     for k, v in row.items():
-        if pd.isna(v):
+        if v is None:
+            cleaned[k] = None
+        elif isinstance(v, float) and math.isnan(v):
+            cleaned[k] = None
+        elif pd.isna(v):
             cleaned[k] = None
         elif isinstance(v, (_dt.datetime, _dt.date)):
             cleaned[k] = v.isoformat()
@@ -627,9 +771,9 @@ def process_excel_files(land_file, property_file) -> list:
     land_df = pd.read_excel(land_file, engine="openpyxl")
     property_df = pd.read_excel(property_file, engine="openpyxl")
 
-    # Rename Ukrainian headers → English API keys
-    land_df.rename(columns=LAND_COLUMN_MAP, inplace=True)
-    property_df.rename(columns=PROPERTY_COLUMN_MAP, inplace=True)
+    # Smart rename: normalised fuzzy header matching with aliases
+    land_df = _smart_rename_columns(land_df, LAND_COLUMN_ALIASES)
+    property_df = _smart_rename_columns(property_df, PROPERTY_COLUMN_ALIASES)
 
     land_rows = [_clean_for_json(r) for r in land_df.to_dict(orient="records")]
     property_rows = [_clean_for_json(r) for r in property_df.to_dict(orient="records")]
