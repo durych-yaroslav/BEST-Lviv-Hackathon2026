@@ -16,7 +16,7 @@ export default function Landing() {
       {/* Navbar */}
       <nav className="w-full py-6 px-10 flex justify-between items-center bg-white shadow-sm">
         <div className="text-xl md:text-2xl font-bold text-[#556B2F] tracking-tight">
-          Автоматизація обліку активів в ОТГ
+          Юніфай
         </div>
         <div className="flex gap-3 md:gap-4">
           <Link 
@@ -51,13 +51,6 @@ export default function Landing() {
           </button>
         </div>
       </main>
-
-      {/* Footer */}
-      <footer className="w-full py-10 bg-[#E9ECEF] text-center flex flex-col items-center justify-center">
-        <p className="text-[#6c757d] text-sm md:text-base font-medium">
-          Команда: <span className="font-bold text-[#495057]">vibekodery228</span>
-        </p>
-      </footer>
     </div>
   );
 }
