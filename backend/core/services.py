@@ -455,39 +455,79 @@ def merge_records(
                 )
                 break  # 1-to-1: move to next land row
 
-    # ── Phase 2: fuzzy matching on leftovers (bounded) ────────────────────
-    remaining_land = [
-        (li, land_rows[li])
-        for li in range(len(land_rows))
-        if li not in matched_land
+    # ── Phase 2: name-based matching on leftovers ───────────────────────────
+    #    Землекористувач (land_user) ↔ Назва платника (name_of_the_taxpayer)
+    #    2a: exact normalised name match (hash-join, O(n+m))
+    #    2b: fuzzy name match for remaining (bounded)
+
+    # Build name index for remaining property rows
+    remaining_prop_indices = [
+        pi for pi in range(len(property_rows)) if pi not in matched_prop
     ]
-    remaining_prop = [
-        (pi, property_rows[pi])
-        for pi in range(len(property_rows))
-        if pi not in matched_prop
+    name_index: Dict[str, List[int]] = {}
+    for pi in remaining_prop_indices:
+        name = _norm_str(property_rows[pi].get("name_of_the_taxpayer"))
+        if name:
+            # Extra cleanup: collapse multiple spaces
+            name = " ".join(name.split())
+            name_index.setdefault(name, []).append(pi)
+
+    # Phase 2a: exact name match
+    remaining_land_indices = [
+        li for li in range(len(land_rows)) if li not in matched_land
+    ]
+    still_unmatched_land: List[int] = []
+
+    for li in remaining_land_indices:
+        name = _norm_str(land_rows[li].get("land_user"))
+        if not name:
+            still_unmatched_land.append(li)
+            continue
+        name = " ".join(name.split())  # collapse spaces
+        candidates = name_index.get(name, [])
+        found = False
+        for pi in candidates:
+            if pi not in matched_prop:
+                matched_land.add(li)
+                matched_prop.add(pi)
+                records.append(
+                    _make_record(report_id, land_rows[li], property_rows[pi])
+                )
+                found = True
+                break
+        if not found:
+            still_unmatched_land.append(li)
+
+    # Phase 2b: fuzzy name match for rows that didn't match exactly
+    still_unmatched_prop = [
+        pi for pi in range(len(property_rows)) if pi not in matched_prop
     ]
 
-    # Only run fuzzy matching if both sides have leftovers and the set is small
-    if remaining_land and remaining_prop:
-        rl = remaining_land[:_FUZZY_CAP]
-        rp = remaining_prop[:_FUZZY_CAP]
+    if still_unmatched_land and still_unmatched_prop:
+        # Pre-compute normalised names for remaining rows
+        land_names = {}
+        for li in still_unmatched_land:
+            n = _norm_str(land_rows[li].get("land_user"))
+            if n:
+                land_names[li] = " ".join(n.split())
 
-        # Use a lightweight score: skip SequenceMatcher, use simple token overlap
-        candidates_scored: List[Tuple[float, int, int]] = []
-        for li, land in rl:
-            for pi, prop in rp:
-                score = _compute_match_score_fast(land, prop)
-                if score >= MATCH_THRESHOLD:
-                    candidates_scored.append((score, li, pi))
+        prop_names = {}
+        for pi in still_unmatched_prop:
+            n = _norm_str(property_rows[pi].get("name_of_the_taxpayer"))
+            if n:
+                prop_names[pi] = " ".join(n.split())
 
-        candidates_scored.sort(key=lambda x: x[0], reverse=True)
-        used_l: set[int] = set()
-        used_p: set[int] = set()
+        # Only attempt fuzzy on rows that actually have names
+        fuzzy_candidates: List[Tuple[float, int, int]] = []
+        for li, lname in land_names.items():
+            for pi, pname in prop_names.items():
+                ratio = SequenceMatcher(None, lname, pname).ratio()
+                if ratio >= 0.85:
+                    fuzzy_candidates.append((ratio, li, pi))
 
-        for score, li, pi in candidates_scored:
-            if li not in used_l and pi not in used_p:
-                used_l.add(li)
-                used_p.add(pi)
+        fuzzy_candidates.sort(key=lambda x: x[0], reverse=True)
+        for ratio, li, pi in fuzzy_candidates:
+            if li not in matched_land and pi not in matched_prop:
                 matched_land.add(li)
                 matched_prop.add(pi)
                 records.append(
@@ -496,7 +536,6 @@ def merge_records(
 
     # ── Phase 3: pair remaining leftovers positionally ──────────────────────
     # Every record must have both land_data and property_data filled.
-    # After smart matching, zip the remaining rows by order.
     leftover_land = [
         land_rows[li]
         for li in range(len(land_rows))
