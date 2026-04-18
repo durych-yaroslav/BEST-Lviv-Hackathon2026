@@ -286,6 +286,42 @@ def merge_records(
 
 
 # ---------------------------------------------------------------------------
+# Excel column mappings — Ukrainian header → English API key
+# ---------------------------------------------------------------------------
+
+LAND_COLUMN_MAP: Dict[str, str] = {
+    "Кадастровий номер": "cadastral_number",
+    "koatuu": "koatuu",
+    "Форма власності": "form_of_ownership",
+    "Цільове призначення": "purpose",
+    "Місцерозташування": "location",
+    "Вид с/г угідь": "type_of_agricultural_land",
+    "Площа, га": "area",
+    "Усереднена нормативно грошова оцінка": "average_monetary_valuation",
+    "ЄДРПОУ землекористувача": "edrpou_of_land_user",
+    "Землекористувач": "land_user",
+    "Частка володіння": "share_of_ownership",
+    "Дата державної реєстрації права власності": "date_of_state_registration_of_ownership",
+    "Номер запису про право власності": "record_number_of_ownership",
+    "Орган, що здійснив державну реєстрацію права власності": "authority_that_performed_state_registration_of_ownership",
+    "Тип": "type",
+    "Підтип": "subtype",
+}
+
+PROPERTY_COLUMN_MAP: Dict[str, str] = {
+    "ІПН платника податку": "tax_number_of_pp",
+    "Найменування платника податку": "name_of_the_taxpayer",
+    "Тип об'єкта": "type_of_object",
+    "Адреса об'єкта": "address_of_the_object",
+    "Дата державної реєстрації права власності": "date_of_state_registration_of_ownership",
+    "Дата державної реєстрації обтяження права власності": "date_of_state_registration_of_pledge_of_ownership",
+    "Загальна площа": "total_area",
+    "Тип спільної власності": "type_of_joint_ownership",
+    "Частка володіння": "share_of_ownership",
+}
+
+
+# ---------------------------------------------------------------------------
 # Excel parsing
 # ---------------------------------------------------------------------------
 
@@ -318,6 +354,10 @@ def process_excel_files(land_file, property_file) -> list:
     """
     land_df = pd.read_excel(land_file, engine="openpyxl")
     property_df = pd.read_excel(property_file, engine="openpyxl")
+
+    # Rename Ukrainian headers → English API keys
+    land_df.rename(columns=LAND_COLUMN_MAP, inplace=True)
+    property_df.rename(columns=PROPERTY_COLUMN_MAP, inplace=True)
 
     land_rows = [_clean_for_json(r) for r in land_df.to_dict(orient="records")]
     property_rows = [_clean_for_json(r) for r in property_df.to_dict(orient="records")]
