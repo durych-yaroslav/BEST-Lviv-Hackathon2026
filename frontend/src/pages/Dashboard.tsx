@@ -1,23 +1,65 @@
 import { useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import * as XLSX from 'xlsx';
 import Navbar from '../components/Navbar';
+import PreviewTable from '../components/PreviewTable';
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const [landFile, setLandFile] = useState<File | null>(null);
   const [propertyFile, setPropertyFile] = useState<File | null>(null);
+  const [landData, setLandData] = useState<any[] | null>(null);
+  const [propertyData, setPropertyData] = useState<any[] | null>(null);
   const [loading, setLoading] = useState(false);
   
   const landInputRef = useRef<HTMLInputElement>(null);
   const propertyInputRef = useRef<HTMLInputElement>(null);
 
-  const handleLandFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const parseExcelFile = (file: File): Promise<any[]> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = new Uint8Array(e.target?.result as ArrayBuffer);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+          const jsonData = XLSX.utils.sheet_to_json(worksheet);
+          resolve(jsonData);
+        } catch (err) {
+          reject(err);
+        }
+      };
+      reader.onerror = (err) => reject(err);
+      reader.readAsArrayBuffer(file);
+    });
+  };
+
+  const handleLandFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setLandFile(e.target.files[0]);
+      const file = e.target.files[0];
+      setLandFile(file);
+      try {
+        const data = await parseExcelFile(file);
+        setLandData(data);
+      } catch (err) {
+        console.error("Помилка при зчитуванні Реєстру 1:", err);
+        alert("Не вдалося розпарсити Реєстр 1");
+      }
     }
   };
 
-  const handlePropertyFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePropertyFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setPropertyFile(e.target.files[0]);
+      const file = e.target.files[0];
+      setPropertyFile(file);
+      try {
+        const data = await parseExcelFile(file);
+        setPropertyData(data);
+      } catch (err) {
+        console.error("Помилка при зчитуванні Реєстру 2:", err);
+        alert("Не вдалося розпарсити Реєстр 2");
+      }
     }
   };
 
@@ -46,7 +88,8 @@ export default function Dashboard() {
       }
 
       const data = await response.json();
-      alert(`Аналіз успішно завершено! ID звіту: ${data.report_id}`);
+      // alert(`Аналіз успішно завершено! ID звіту: ${data.report_id}`);
+      navigate(`/report/${data.report_id}`);
     } catch (err: any) {
       alert(err.message || 'Сталася помилка при відправці файлів');
     } finally {
@@ -55,16 +98,16 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8F9FA] flex flex-col font-sans">
+    <div className="h-screen bg-[#F8F9FA] flex flex-col font-sans overflow-hidden">
       <Navbar />
 
-      <main className="flex-1 p-6 md:p-10 flex flex-col items-center">
+      <main className="flex-1 p-6 md:p-10 flex flex-col items-center min-h-0">
         {/* Tables Container */}
-        <div className="w-full max-w-[98%] grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
+        <div className="w-full max-w-[98%] grid grid-cols-1 lg:grid-cols-2 gap-8 mb-6 flex-1 min-h-0">
 
           {/* Left Table Container */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col overflow-hidden">
-            <div className="p-6 border-b border-gray-50 flex justify-between items-center bg-white/50">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col overflow-hidden min-h-0">
+            <div className="py-3 px-6 border-b border-gray-50 flex justify-between items-center bg-white/50">
               <h3 className="text-lg font-bold text-[#2F4F4F]">Реєстр 1 (Земля)</h3>
               <input 
                 type="file" 
@@ -77,28 +120,28 @@ export default function Dashboard() {
                 onClick={() => landInputRef.current?.click()}
                 className="text-sm px-4 py-2 rounded-lg bg-[#556B2F]/10 text-[#556B2F] hover:bg-[#556B2F] hover:text-white transition-all font-medium"
               >
-                Завантажити .xlsx файл
+                {landFile ? 'Змінити файл' : 'Завантажити .xlsx файл'}
               </button>
             </div>
-            <div className="p-10 flex flex-col items-center justify-center min-h-[600px]">
-              <div className={`w-20 h-20 mb-4 rounded-full flex items-center justify-center transition-colors ${landFile ? 'bg-[#556B2F]/20 text-[#556B2F]' : 'bg-gray-50 text-gray-300'}`}>
-                <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  {landFile ? (
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  ) : (
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                  )}
-                </svg>
-              </div>
-              <p className={`font-light ${landFile ? 'text-[#2F4F4F] font-medium' : 'text-gray-400 italic'}`}>
-                {landFile ? `Файл: ${landFile.name}` : 'Дані відсутні'}
-              </p>
+            <div className="p-4 flex flex-col items-center justify-center flex-1 overflow-hidden">
+              {landData ? (
+                <PreviewTable data={landData} />
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full">
+                  <div className="w-20 h-20 mb-4 rounded-full flex items-center justify-center bg-gray-50 text-gray-300">
+                    <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  <p className="text-gray-400 font-light italic">Дані відсутні</p>
+                </div>
+              )}
             </div>
           </div>
 
           {/* Right Table Container */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col overflow-hidden">
-            <div className="p-6 border-b border-gray-50 flex justify-between items-center bg-white/50">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col overflow-hidden min-h-0">
+            <div className="py-3 px-6 border-b border-gray-50 flex justify-between items-center bg-white/50">
               <h3 className="text-lg font-bold text-[#2F4F4F]">Реєстр 2 (Нерухомість)</h3>
               <input 
                 type="file" 
@@ -111,29 +154,29 @@ export default function Dashboard() {
                 onClick={() => propertyInputRef.current?.click()}
                 className="text-sm px-4 py-2 rounded-lg bg-[#556B2F]/10 text-[#556B2F] hover:bg-[#556B2F] hover:text-white transition-all font-medium"
               >
-                Завантажити .xlsx файл
+                {propertyFile ? 'Змінити файл' : 'Завантажити .xlsx файл'}
               </button>
             </div>
-            <div className="p-10 flex flex-col items-center justify-center min-h-[600px]">
-              <div className={`w-20 h-20 mb-4 rounded-full flex items-center justify-center transition-colors ${propertyFile ? 'bg-[#556B2F]/20 text-[#556B2F]' : 'bg-gray-50 text-gray-300'}`}>
-                <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  {propertyFile ? (
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  ) : (
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                  )}
-                </svg>
-              </div>
-              <p className={`font-light ${propertyFile ? 'text-[#2F4F4F] font-medium' : 'text-gray-400 italic'}`}>
-                {propertyFile ? `Файл: ${propertyFile.name}` : 'Дані відсутні'}
-              </p>
+            <div className="p-4 flex flex-col items-center justify-center flex-1 overflow-hidden">
+              {propertyData ? (
+                <PreviewTable data={propertyData} />
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full">
+                  <div className="w-20 h-20 mb-4 rounded-full flex items-center justify-center bg-gray-50 text-gray-300">
+                    <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  <p className="text-gray-400 font-light italic">Дані відсутні</p>
+                </div>
+              )}
             </div>
           </div>
 
         </div>
 
         {/* Action Button */}
-        <div className="w-full max-w-[98%] flex justify-end">
+        <div className="w-full max-w-[98%] flex justify-end pb-4">
           <button 
             onClick={handleAnalyze}
             disabled={loading}
@@ -143,13 +186,6 @@ export default function Dashboard() {
           </button>
         </div>
       </main>
-
-      {/* Footer mimic existing style */}
-      <footer className="w-full py-6 bg-[#E9ECEF] text-center mt-auto">
-        <p className="text-[#6c757d] text-sm font-medium">
-          Команда: <span className="font-bold text-[#495057]">vibekodery228</span>
-        </p>
-      </footer>
     </div>
   );
 }
