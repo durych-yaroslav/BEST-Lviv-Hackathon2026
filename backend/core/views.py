@@ -12,8 +12,7 @@ from django.db.models.expressions import RawSQL
 from .models import Report, Record
 from .serializers import UserRegistrationSerializer, RecordSerializer
 from .services import process_excel_files
-from rest_framework.pagination import PageNumberPagination
-from collections import OrderedDict
+from .pagination import StandardResultsSetPagination
 
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
@@ -60,22 +59,6 @@ class RegisterView(generics.CreateAPIView):
     permission_classes = (AllowAny,)
     serializer_class = UserRegistrationSerializer
 
-
-# ────────────────────────── Pagination ────────────────────────────
-
-class StandardResultsSetPagination(PageNumberPagination):
-    page_size = 50
-    page_size_query_param = 'size'
-    page_query_param = 'page'
-    max_page_size = 1000
-
-    def get_paginated_response(self, data):
-        return Response(OrderedDict([
-            ('items', data),
-            ('total', self.page.paginator.count),
-            ('page', self.page.number),
-            ('size', len(data)),
-        ]))
 
 
 # ────────────────────────── Reports ───────────────────────────────
