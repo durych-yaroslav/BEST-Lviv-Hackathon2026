@@ -104,7 +104,7 @@ export default function Dashboard() {
 
           {/* Left Table Container */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col overflow-hidden min-h-0">
-            <div className="p-6 border-b border-gray-50 flex justify-between items-center bg-white/50">
+            <div className="py-3 px-6 border-b border-gray-50 flex justify-between items-center bg-white/50">
               <h3 className="text-lg font-bold text-[#2F4F4F]">Реєстр 1 (Земля)</h3>
               <input 
                 type="file" 
@@ -138,7 +138,7 @@ export default function Dashboard() {
 
           {/* Right Table Container */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col overflow-hidden min-h-0">
-            <div className="p-6 border-b border-gray-50 flex justify-between items-center bg-white/50">
+            <div className="py-3 px-6 border-b border-gray-50 flex justify-between items-center bg-white/50">
               <h3 className="text-lg font-bold text-[#2F4F4F]">Реєстр 2 (Нерухомість)</h3>
               <input 
                 type="file" 
