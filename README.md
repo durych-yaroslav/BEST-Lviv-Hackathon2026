@@ -204,7 +204,7 @@ Records may have discrepancies or missing data when merged from "land" and "prop
     "uuid-1",
     "uuid-2"
   ]
-}
+}```
 
 ### 7. AI Analysis
 **Endpoint:** `POST /api/reports/ai-analysis`  
