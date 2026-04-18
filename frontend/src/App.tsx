@@ -8,10 +8,10 @@ function App() {
         </div>
         <div className="flex gap-3 md:gap-4">
           <button className="px-5 py-2.5 md:px-7 rounded-full font-medium text-[#2F4F4F] hover:bg-gray-100 transition-colors duration-200">
-            Login
+            Увійти
           </button>
           <button className="px-5 py-2.5 md:px-7 rounded-full font-medium bg-[#556B2F] text-white hover:bg-[#6B8E23] shadow-md hover:shadow-lg transition-all duration-200">
-            Register
+            Зареєструватись
           </button>
         </div>
       </nav>
@@ -27,7 +27,7 @@ function App() {
             Автоматичне виявлення розбіжностей у реєстрах нерухомості та землі.
           </p>
           <button className="px-10 py-4 md:px-12 md:py-5 rounded-full text-lg font-semibold bg-[#2F4F4F] text-white hover:bg-[#1f3535] shadow-md hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
-            Get Started
+            Розпочати
           </button>
         </div>
       </main>
