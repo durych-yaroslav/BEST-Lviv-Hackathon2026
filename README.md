@@ -201,4 +201,4 @@ Records may have discrepancies or missing data when merged from "land" and "prop
 
 > **Note to developer:** If the original intent behind the old `GET /report_id/export/` endpoint was to bulk export multiple precise **records** from a single report rather than multiple whole reports themselves, you should use `POST /api/reports/{report_id}/export` with a payload of `{"record_ids": ["uuid-1", "uuid-2"]}` instead.
 
-**Response Content-Type:** `application/pdf` (Binary file content or ZIP archive if multiple files)
+**Response Content-Type:** `application/pdf` (Binary file content)
