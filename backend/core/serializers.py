@@ -11,10 +11,15 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         fields = ('id', 'email', 'name', 'password')
         extra_kwargs = {'email': {'required': True}}
 
+    def validate_email(self, value):
+        if User.objects.filter(username=value).exists():
+            raise serializers.ValidationError("A user with this email already exists.")
+        return value
+
     def create(self, validated_data):
         email = validated_data.get('email', '')
         user = User.objects.create_user(
-            username=email, # Django requires username, use email
+            username=email,
             email=email,
             first_name=validated_data.get('first_name', ''),
             password=validated_data['password']
