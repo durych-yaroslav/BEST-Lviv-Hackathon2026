@@ -494,14 +494,22 @@ def merge_records(
                     _make_record(report_id, land_rows[li], property_rows[pi])
                 )
 
-    # ── Unmatched leftovers ───────────────────────────────────────────────
-    for li in range(len(land_rows)):
-        if li not in matched_land:
-            records.append(_make_record(report_id, land_rows[li], {}))
+    # ── Phase 3: pair remaining leftovers positionally ──────────────────────
+    # Every record must have both land_data and property_data filled.
+    # After smart matching, zip the remaining rows by order.
+    leftover_land = [
+        land_rows[li]
+        for li in range(len(land_rows))
+        if li not in matched_land
+    ]
+    leftover_prop = [
+        property_rows[pi]
+        for pi in range(len(property_rows))
+        if pi not in matched_prop
+    ]
 
-    for pi in range(len(property_rows)):
-        if pi not in matched_prop:
-            records.append(_make_record(report_id, {}, property_rows[pi]))
+    for land, prop in zip(leftover_land, leftover_prop):
+        records.append(_make_record(report_id, land, prop))
 
     return records
 
