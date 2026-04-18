@@ -47,6 +47,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         return {
             "access_token": str(refresh.access_token),
             "token_type": "Bearer",
+            "username": self.user.first_name or self.user.username,
         }
 
 

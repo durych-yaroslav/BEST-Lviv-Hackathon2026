@@ -4,11 +4,14 @@ interface NavbarProps {
   username?: string;
 }
 
-export default function Navbar({ username = "Адміністратор" }: NavbarProps) {
+export default function Navbar({ username: propUsername }: NavbarProps) {
   const navigate = useNavigate();
+  const storedUsername = localStorage.getItem('username');
+  const displayUsername = propUsername || storedUsername || "Гість";
 
   const handleLogout = () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('username');
     navigate('/');
   };
 
@@ -22,7 +25,7 @@ export default function Navbar({ username = "Адміністратор" }: Navb
       </div>
       <div className="flex items-center gap-6">
         <span className="text-[#2F4F4F] font-medium hidden sm:block">
-          {username}
+          {displayUsername}
         </span>
         <button 
           onClick={handleLogout}
