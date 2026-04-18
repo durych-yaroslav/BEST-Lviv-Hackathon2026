@@ -1,50 +1,43 @@
 """
 merge_service.py — Service layer for merging land and property registry records.
 
-Algorithm:
+Algorithm (fast, O(n+m)):
   1. Parse both Excel files (land & property) with Ukrainian→English column mapping.
-  2. For every land row, score it against every (unmatched) property row using
-     approximate comparison on overlapping fields.
-  3. Greedily pair up the best-scoring matches above a threshold.
-  4. Each pair becomes one report record with both land_data and property_data filled.
-  5. Unmatched land rows get property_data = {}, unmatched property rows get land_data = {}.
-  6. Problems are left empty for now.
+  2. Build a hash-map index of property rows keyed by tax_number_of_pp.
+  3. For each land row, look up matching property row via edrpou_of_land_user.
+  4. For matched pairs, compare corresponding fields and populate `problems`.
+  5. Unmatched land rows → record with property_data = {}.
+     Unmatched property rows → record with land_data = {}.
 """
 
 from __future__ import annotations
 
+import math
 import uuid
 from datetime import datetime, date
-from difflib import SequenceMatcher
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
 
 
 # ---------------------------------------------------------------------------
-# Constants
+# Problem enum values (from README)
 # ---------------------------------------------------------------------------
 
-# Minimum total similarity score (0..1) for two rows to be considered a match.
-MATCH_THRESHOLD = 0.35
+PROBLEM_EDRPOU = "edrpou_of_land_user"
+PROBLEM_LAND_USER = "land_user"
+PROBLEM_LOCATION = "location"
+PROBLEM_AREA = "area"
+PROBLEM_DATE = "date_of_state_registration_of_ownership"
+PROBLEM_SHARE = "share_of_ownership"
+PROBLEM_PURPOSE = "purpose"
 
-# Individual field weights for the similarity score.
-WEIGHTS = {
-    "cadastral": 5.0,       # cadastral_number — strongest signal
-    "edrpou_tax": 4.0,      # edrpou_of_land_user ↔ tax_number_of_pp
-    "owner_name": 3.0,      # land_user ↔ name_of_the_taxpayer
-    "location": 2.5,        # location ↔ address_of_the_object
-    "area": 2.0,            # area ↔ total_area
-    "share": 1.0,           # share_of_ownership
-    "date_reg": 1.0,        # date_of_state_registration_of_ownership
-}
-
-TOTAL_WEIGHT = sum(WEIGHTS.values())
+FLOAT_TOLERANCE = 0.01
 
 
 # ---------------------------------------------------------------------------
-# Low-level helpers
+# Normalisation helpers
 # ---------------------------------------------------------------------------
 
 
@@ -81,181 +74,113 @@ def _norm_date(value: Any) -> Optional[date]:
 
 
 def _norm_digits(value: Any) -> Optional[str]:
-    """Extract digits only from a value."""
+    """Extract digits only from a value (for EDRPOU / tax number comparison)."""
     if value is None:
         return None
     digits = "".join(c for c in str(value) if c.isdigit())
     return digits or None
 
 
-def _norm_cadastral(value: Any) -> Optional[str]:
-    """Normalise cadastral number: lowercase, strip, collapse inner spaces."""
-    s = _norm_str(value)
-    if s is None:
-        return None
-    return " ".join(s.split())
-
-
 # ---------------------------------------------------------------------------
-# Field-level similarity functions (each returns 0.0 .. 1.0)
+# Field comparison helpers
 # ---------------------------------------------------------------------------
 
 
-def _sim_exact_str(a: Any, b: Any) -> float:
-    """1.0 if normalised strings are identical, 0.0 otherwise."""
+def _str_mismatch(a: Any, b: Any) -> bool:
+    """True when two string-like values meaningfully differ."""
     na, nb = _norm_str(a), _norm_str(b)
+    if na is None and nb is None:
+        return False
     if na is None or nb is None:
-        return 0.0
-    return 1.0 if na == nb else 0.0
+        return True
+    return na != nb
 
 
-def _sim_fuzzy_str(a: Any, b: Any) -> float:
-    """Fuzzy string similarity via SequenceMatcher (0..1)."""
-    na, nb = _norm_str(a), _norm_str(b)
-    if na is None or nb is None:
-        return 0.0
-    return SequenceMatcher(None, na, nb).ratio()
-
-
-def _sim_digits(a: Any, b: Any) -> float:
-    """1.0 if digit-only representations match, 0.0 otherwise."""
-    da, db = _norm_digits(a), _norm_digits(b)
-    if da is None or db is None:
-        return 0.0
-    return 1.0 if da == db else 0.0
-
-
-def _sim_float(a: Any, b: Any, tolerance: float = 0.05) -> float:
-    """
-    Return 1.0 for identical floats, linearly declining to 0.0
-    as relative difference exceeds `tolerance`.
-    """
+def _float_mismatch(a: Any, b: Any) -> bool:
+    """True when two numeric values differ beyond FLOAT_TOLERANCE."""
     fa, fb = _norm_float(a), _norm_float(b)
+    if fa is None and fb is None:
+        return False
     if fa is None or fb is None:
-        return 0.0
-    denom = max(abs(fa), abs(fb), 1e-9)
-    rel_diff = abs(fa - fb) / denom
-    if rel_diff <= tolerance:
-        return 1.0
-    # linear decay — fully 0.0 at 10× tolerance
-    return max(0.0, 1.0 - (rel_diff - tolerance) / (tolerance * 9))
+        return True
+    return abs(fa - fb) > FLOAT_TOLERANCE
 
 
-def _sim_date(a: Any, b: Any) -> float:
-    """1.0 if same date, 0.0 otherwise (or if either is missing)."""
+def _date_mismatch(a: Any, b: Any) -> bool:
+    """True when two date values differ."""
     da, db = _norm_date(a), _norm_date(b)
+    if da is None and db is None:
+        return False
     if da is None or db is None:
-        return 0.0
-    return 1.0 if da == db else 0.0
+        return True
+    return da != db
+
+
+def _digits_mismatch(a: Any, b: Any) -> bool:
+    """True when digit-only representations differ."""
+    da, db = _norm_digits(a), _norm_digits(b)
+    if da is None and db is None:
+        return False
+    if da is None or db is None:
+        return True
+    return da != db
 
 
 # ---------------------------------------------------------------------------
-# Composite scoring
+# Problem detection
 # ---------------------------------------------------------------------------
 
+# Each check: (problem_key, comparator, land_field, property_field)
+PROBLEM_CHECKS = [
+    (PROBLEM_EDRPOU,    _digits_mismatch, "edrpou_of_land_user",                    "tax_number_of_pp"),
+    (PROBLEM_LAND_USER, _str_mismatch,    "land_user",                               "name_of_the_taxpayer"),
+    (PROBLEM_LOCATION,  _str_mismatch,    "location",                                "address_of_the_object"),
+    (PROBLEM_AREA,      _float_mismatch,  "area",                                    "total_area"),
+    (PROBLEM_DATE,      _date_mismatch,   "date_of_state_registration_of_ownership", "date_of_state_registration_of_ownership"),
+    (PROBLEM_SHARE,     _float_mismatch,  "share_of_ownership",                      "share_of_ownership"),
+    (PROBLEM_PURPOSE,   _str_mismatch,    "purpose",                                 "type_of_object"),
+]
 
-def _score_pair(land: Dict[str, Any], prop: Dict[str, Any]) -> float:
+
+def _detect_problems(land: Dict[str, Any], prop: Dict[str, Any]) -> List[str]:
     """
-    Return a weighted similarity score (0..1) between a land row and a
-    property row by comparing overlapping fields.
+    Compare corresponding fields between land_data and property_data.
+    Return a list of problem enum strings for fields that have discrepancies.
     """
-    scores: List[Tuple[float, float]] = []  # (weight, similarity)
+    problems: List[str] = []
 
-    # cadastral_number — both tables may have it
-    cad_land = land.get("cadastral_number")
-    cad_prop = prop.get("cadastral_number")
-    if cad_land or cad_prop:
-        scores.append((WEIGHTS["cadastral"], _sim_exact_str(cad_land, cad_prop)))
+    for problem_key, comparator, land_field, prop_field in PROBLEM_CHECKS:
+        land_val = land.get(land_field)
+        prop_val = prop.get(prop_field)
+        try:
+            if comparator(land_val, prop_val):
+                problems.append(problem_key)
+        except Exception:
+            problems.append(problem_key)
 
-    # EDRPOU ↔ tax number
-    edrpou = land.get("edrpou_of_land_user")
-    tax = prop.get("tax_number_of_pp")
-    if edrpou or tax:
-        scores.append((WEIGHTS["edrpou_tax"], _sim_digits(edrpou, tax)))
-
-    # Owner / taxpayer name
-    lu = land.get("land_user")
-    tn = prop.get("name_of_the_taxpayer")
-    if lu or tn:
-        scores.append((WEIGHTS["owner_name"], _sim_fuzzy_str(lu, tn)))
-
-    # Location / address
-    loc = land.get("location")
-    addr = prop.get("address_of_the_object")
-    if loc or addr:
-        scores.append((WEIGHTS["location"], _sim_fuzzy_str(loc, addr)))
-
-    # Area
-    area_l = land.get("area")
-    area_p = prop.get("total_area")
-    if area_l is not None or area_p is not None:
-        scores.append((WEIGHTS["area"], _sim_float(area_l, area_p)))
-
-    # Share of ownership
-    share_l = land.get("share_of_ownership")
-    share_p = prop.get("share_of_ownership")
-    if share_l is not None or share_p is not None:
-        scores.append((WEIGHTS["share"], _sim_float(share_l, share_p)))
-
-    # Date of state registration of ownership
-    date_l = land.get("date_of_state_registration_of_ownership")
-    date_p = prop.get("date_of_state_registration_of_ownership")
-    if date_l or date_p:
-        scores.append((WEIGHTS["date_reg"], _sim_date(date_l, date_p)))
-
-    if not scores:
-        return 0.0
-
-    total_w = sum(w for w, _ in scores)
-    if total_w == 0:
-        return 0.0
-
-    return sum(w * s for w, s in scores) / total_w
+    return problems
 
 
 # ---------------------------------------------------------------------------
-# Greedy matching
+# Matching — fast O(n+m) index-based
 # ---------------------------------------------------------------------------
 
 
-def _greedy_match(
-    land_rows: List[Dict[str, Any]],
+def _build_property_index(
     property_rows: List[Dict[str, Any]],
-) -> Tuple[
-    List[Tuple[Dict[str, Any], Dict[str, Any]]],   # matched pairs
-    List[Dict[str, Any]],                            # unmatched land
-    List[Dict[str, Any]],                            # unmatched property
-]:
+) -> Dict[str, List[Dict[str, Any]]]:
     """
-    Score every (land, property) pair, then greedily pick the highest-score
-    pairs above MATCH_THRESHOLD.  Each row is used at most once.
+    Build a lookup index from property rows keyed by normalised
+    tax_number_of_pp (digits only).
     """
-    # Build all candidate pairs with scores
-    candidates: List[Tuple[float, int, int]] = []
-    for li, land in enumerate(land_rows):
-        for pi, prop in enumerate(property_rows):
-            score = _score_pair(land, prop)
-            if score >= MATCH_THRESHOLD:
-                candidates.append((score, li, pi))
+    index: Dict[str, List[Dict[str, Any]]] = {}
 
-    # Sort descending by score
-    candidates.sort(key=lambda x: x[0], reverse=True)
+    for row in property_rows:
+        tax = _norm_digits(row.get("tax_number_of_pp"))
+        if tax:
+            index.setdefault(tax, []).append(row)
 
-    used_land: set[int] = set()
-    used_prop: set[int] = set()
-    pairs: List[Tuple[Dict[str, Any], Dict[str, Any]]] = []
-
-    for score, li, pi in candidates:
-        if li in used_land or pi in used_prop:
-            continue
-        pairs.append((land_rows[li], property_rows[pi]))
-        used_land.add(li)
-        used_prop.add(pi)
-
-    unmatched_land = [r for i, r in enumerate(land_rows) if i not in used_land]
-    unmatched_prop = [r for i, r in enumerate(property_rows) if i not in used_prop]
-
-    return pairs, unmatched_land, unmatched_prop
+    return index
 
 
 # ---------------------------------------------------------------------------
@@ -268,13 +193,22 @@ def _make_record(
     land: Dict[str, Any],
     prop: Dict[str, Any],
 ) -> Dict[str, Any]:
-    """Construct a single output record.  Problems are left empty."""
+    """
+    Construct a single output record.
+    - If both land and prop are present → detect problems between them.
+    - Otherwise → problems is empty.
+    """
+    if land and prop:
+        problems = _detect_problems(land, prop)
+    else:
+        problems = []
+
     return {
         "report_id": report_id,
         "record_id": str(uuid.uuid4()),
-        "problems": [],           # ← empty for now
-        "land_data": dict(land),
-        "property_data": dict(prop),
+        "problems": problems,
+        "land_data": dict(land) if land else {},
+        "property_data": dict(prop) if prop else {},
     }
 
 
@@ -291,13 +225,11 @@ def merge_records(
     """
     Merge land and property rows into unified report records.
 
-    Algorithm:
-      1. Score every (land, property) pair on overlapping fields.
-      2. Greedily pair up the best matches above MATCH_THRESHOLD.
-      3. Paired rows → one record with both land_data & property_data.
-      4. Unpaired land rows → record with property_data = {}.
-      5. Unpaired property rows → record with land_data = {}.
-      6. Problems are always empty for now.
+    Matching key: edrpou_of_land_user (land) ↔ tax_number_of_pp (property).
+    Comparison is done on normalised digits only.
+
+    For matched pairs, corresponding fields are compared and discrepancies
+    are listed in the `problems` array.
 
     Parameters
     ----------
@@ -313,21 +245,26 @@ def merge_records(
     list[dict]
         Records matching the API schema.
     """
-    pairs, unmatched_land, unmatched_prop = _greedy_match(land_rows, property_rows)
-
+    by_tax = _build_property_index(property_rows)
+    matched_prop_ids: set[int] = set()
     records: List[Dict[str, Any]] = []
 
-    # Matched pairs
-    for land, prop in pairs:
-        records.append(_make_record(report_id, land, prop))
+    for land in land_rows:
+        edrpou = _norm_digits(land.get("edrpou_of_land_user"))
+        matches = by_tax.get(edrpou, []) if edrpou else []
 
-    # Unmatched land rows
-    for land in unmatched_land:
-        records.append(_make_record(report_id, land, {}))
+        if matches:
+            for prop in matches:
+                matched_prop_ids.add(id(prop))
+                records.append(_make_record(report_id, land, prop))
+        else:
+            # Land row with no matching property row
+            records.append(_make_record(report_id, land, {}))
 
-    # Unmatched property rows
-    for prop in unmatched_prop:
-        records.append(_make_record(report_id, {}, prop))
+    # Property rows that had no matching land row
+    for prop in property_rows:
+        if id(prop) not in matched_prop_ids:
+            records.append(_make_record(report_id, {}, prop))
 
     return records
 
@@ -397,7 +334,7 @@ def process_excel_files(land_file, property_file) -> list:
     """
     Parse two .xlsx uploads and return a list of merged record dicts.
 
-    Each dict contains keys: problems, land_data, property_data.
+    Each dict contains keys: report_id, record_id, problems, land_data, property_data.
     """
     land_df = pd.read_excel(land_file, engine="openpyxl")
     property_df = pd.read_excel(property_file, engine="openpyxl")
