@@ -19,9 +19,12 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
 
 
 class RecordSerializer(serializers.ModelSerializer):
+    record_id = serializers.UUIDField(source='id', read_only=True)
+    report_id = serializers.UUIDField(source='report.id', read_only=True)
+
     class Meta:
         model = Record
-        fields = ['id', 'report', 'problems', 'land_data', 'property_data']
+        fields = ['report_id', 'record_id', 'problems', 'land_data', 'property_data']
 
 
 class ReportSerializer(serializers.ModelSerializer):
