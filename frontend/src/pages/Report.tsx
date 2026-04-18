@@ -78,10 +78,24 @@ export default function Report() {
           
           {/* Header Controls */}
           <div className="flex justify-between items-center mb-10">
-            <div className="flex gap-4">
-              <button className="px-6 py-2 rounded-lg border-2 border-[#556B2F] text-[#556B2F] font-bold hover:bg-[#556B2F] hover:text-white transition-all shadow-sm">
-                Пошук
-              </button>
+            <div className="flex gap-4 items-center">
+              <div className="relative w-72">
+                <input 
+                  type="text" 
+                  placeholder="Пошук..." 
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border-2 border-gray-100 focus:outline-none focus:border-[#556B2F]/50 transition-all text-sm"
+                />
+                <button className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-[#556B2F] transition-colors focus:outline-none">
+                  <svg 
+                    className="w-5 h-5" 
+                    fill="none" 
+                    stroke="currentColor" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </button>
+              </div>
               <button className="px-6 py-2 rounded-lg border-2 border-[#556B2F] text-[#556B2F] font-bold hover:bg-[#556B2F] hover:text-white transition-all shadow-sm">
                 Фільтрація
               </button>
