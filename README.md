@@ -105,7 +105,7 @@ Records may have discrepancies or missing data when merged from "land" and "prop
 - `tax_number_of_pp` (string)
 - `koatuu` (string)
 - *(Additional fields matching the JSON contract below are also supported as query filters)*
-- `sort_by` (string): Field name to sort by (e.g., `area`, `date_of_state_registration_of_ownership`).
+- `sort_by` (string): Field name to sort by (e.g., `area`, `date_of_state_registration_of_ownership` and `count of problems`).
 - `order` (string): Sorting order, either `asc` or `desc` (default: `asc`).
 - `page` (integer): Page number for pagination (default: 1).
 - `size` (integer): Number of items per page (default: 50).
@@ -177,14 +177,7 @@ Records may have discrepancies or missing data when merged from "land" and "prop
 
 ## 📄 Export
 
-### 6. Export Single Record as PDF
-**Endpoint:** `GET /api/reports/{report_id}/records/{record_id}/export`  
-**Description:** Generates and downloads a PDF document for a specific record.
-
-**Security:** Requires Bearer Token  
-**Response Content-Type:** `application/pdf` (Binary file content)
-
-### 7. Bulk Export Reports as PDF
+### 6. Bulk Export Reports as PDF
 **Endpoint:** `POST /api/reports/export`  
 **Description:** Accepts an array of report identifiers and generates a combined PDF containing the requested reports.
 
