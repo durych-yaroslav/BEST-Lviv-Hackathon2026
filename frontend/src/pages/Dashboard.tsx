@@ -35,7 +35,7 @@ export default function Dashboard() {
                 Завантажити .xlsx файл
               </button>
             </div>
-            <div className="p-10 flex flex-col items-center justify-center min-h-[400px]">
+            <div className="p-10 flex flex-col items-center justify-center min-h-[500px]">
               <div className="w-20 h-20 mb-4 bg-gray-50 rounded-full flex items-center justify-center">
                 <svg className="w-10 h-10 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
