@@ -1,6 +1,16 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 export default function Landing() {
+  const navigate = useNavigate();
+
+  const handleStart = () => {
+    if (localStorage.getItem('token')) {
+      navigate('/dashboard');
+    } else {
+      navigate('/login');
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col font-sans bg-[#F8F9FA] text-[#2F4F4F]">
       {/* Navbar */}
@@ -34,7 +44,9 @@ export default function Landing() {
           <p className="text-base md:text-xl text-gray-500 max-w-3xl mx-auto mb-10 md:mb-14 leading-relaxed font-light">
             Автоматичне виявлення розбіжностей у реєстрах нерухомості та землі.
           </p>
-          <button className="px-10 py-4 md:px-12 md:py-5 rounded-full text-lg font-semibold bg-[#2F4F4F] text-white hover:bg-[#1f3535] shadow-md hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
+          <button 
+            onClick={handleStart}
+            className="px-10 py-4 md:px-12 md:py-5 rounded-full text-lg font-semibold bg-[#2F4F4F] text-white hover:bg-[#1f3535] shadow-md hover:shadow-xl hover:-translate-y-1 transition-all duration-300">
             Розпочати
           </button>
         </div>
