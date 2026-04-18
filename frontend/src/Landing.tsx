@@ -51,13 +51,6 @@ export default function Landing() {
           </button>
         </div>
       </main>
-
-      {/* Footer */}
-      <footer className="w-full py-10 bg-[#E9ECEF] text-center flex flex-col items-center justify-center">
-        <p className="text-[#6c757d] text-sm md:text-base font-medium">
-          Команда: <span className="font-bold text-[#495057]">vibekodery228</span>
-        </p>
-      </footer>
     </div>
   );
 }

@@ -143,13 +143,6 @@ export default function Dashboard() {
           </button>
         </div>
       </main>
-
-      {/* Footer mimic existing style */}
-      <footer className="w-full py-6 bg-[#E9ECEF] text-center mt-auto">
-        <p className="text-[#6c757d] text-sm font-medium">
-          Команда: <span className="font-bold text-[#495057]">vibekodery228</span>
-        </p>
-      </footer>
     </div>
   );
 }
