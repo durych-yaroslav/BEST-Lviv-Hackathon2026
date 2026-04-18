@@ -4,6 +4,22 @@ This documentation describes the RESTful API for the land and property report ma
 
 ---
 
+## 🚀 Running the Project
+
+The application runs seamlessly via Docker Compose. Use the provided `Makefile` to orchestrate the environment.
+
+### Makefile Commands:
+- `make up`: Builds and starts all services (Frontend & Backend) in the background.
+- `make down`: Stops and removes all running containers.
+- `make frontend-up` / `make backend-up`: Builds and starts a specific service.
+- `make frontend-down` / `make backend-down`: Stops a specific service without destroying it.
+
+### Exposed Environment Ports:
+- **Frontend App:** [http://localhost:3000](http://localhost:3000)
+- **Backend API:** [http://localhost:8000](http://localhost:8000)
+
+---
+
 ## 🔒 Global Security & Error Handling
 
 **Authentication:** 
