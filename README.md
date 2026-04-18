@@ -104,8 +104,7 @@ Records may have discrepancies or missing data when merged from "land" and "prop
 - `cadastral_number` (string)
 - `tax_number_of_pp` (string)
 - `koatuu` (string)
-- *(Additional fields matching the JSON contract below are also supported as query filters)*
-- `sort_by` (string): Field name to sort by (e.g., `area`, `date_of_state_registration_of_ownership` and `count of problems`).
+- `sort_by` (string): Field name to sort by (e.g., `area`, `date_of_state_registration_of_ownership`) or `count_of_problems`.
 - `order` (string): Sorting order, either `asc` or `desc` (default: `asc`).
 - `page` (integer): Page number for pagination (default: 1).
 - `size` (integer): Number of items per page (default: 50).
