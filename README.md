@@ -1,183 +1,212 @@
-# 📊 Land & Property Management API
+# API Documentation
 
-![Land & Property Management Dashboard](/home/cttxl/.gemini/antigravity/brain/778d9873-1cf8-43c0-a94e-6d0612527b96/land_property_management_hero_1776554469235.png)
-
-A comprehensive RESTful API system designed for **United Territorial Communities (UTCs)** to synchronize, audit, and manage land and property assets with precision.
+This documentation describes the RESTful API for the land and property report management system. All endpoints follow standard REST architectural patterns.
 
 ---
 
-## 📖 Project Overview
+## 🚀 Running the Project
 
-In many municipal environments, a systemic discrepancy exists between the physical state of assets and official records. This leads to revenue loss and inefficient resource management. 
+The application runs seamlessly via Docker Compose. Use the provided `Makefile` to orchestrate the environment.
 
-Our solution provides:
-- **🔄 Data Synchronization**: Real-time alignment between disparate registry systems.
-- **⚖️ Audit & Control**: Robust capabilities to track and verify asset utilization.
-- **📈 Revenue Recovery**: Automated identification of misclassified properties for taxation.
-- **🤝 Transparency**: Consolidated records to foster public trust and accountability.
+### Makefile Commands:
+- `make up`: Builds and starts all services (Frontend & Backend) in the background.
+- `make down`: Stops and removes all running containers.
+- `make frontend-up` / `make backend-up`: Builds and starts a specific service.
+- `make frontend-down` / `make backend-down`: Stops a specific service without destroying it.
 
-### 🛠 Tech Stack
-*   **Backend**: Python, Django, DRF, SQLite/PostgreSQL
-*   **Frontend**: React, Next.js, Vite
-*   **DevOps**: Docker, Docker Compose, Makefile
-
----
-
-## 🚀 Getting Started
-
-### Prerequisites
-*   [Docker](https://www.docker.com/get-started) & [Docker Compose](https://docs.docker.com/compose/install/)
-*   `make` (GNU Make)
-
-### Quick Launch
-Deploy the entire stack (Frontend & Backend) in seconds:
-
-```bash
-make up
-```
-
-| Service | Access URL |
-| :--- | :--- |
-| **Frontend Application** | [http://localhost:3000](http://localhost:3000) |
-| **Backend API** | [http://localhost:8000](http://localhost:8000) |
-
-### 🎮 Makefile Reference
-| Command | Description |
-| :--- | :--- |
-| `make up` | Builds and starts all services in background. |
-| `make down` | Stops and removes all containers/networks. |
-| `make backend-up` | Builds and starts only the Backend API. |
-| `make frontend-up` | Builds and starts only the Frontend App. |
-| `make backend-logs` | Follow real-time logs for the backend. |
+### Exposed Environment Ports:
+- **Frontend App:** [http://localhost:3000](http://localhost:3000)
+- **Backend API:** [http://localhost:8000](http://localhost:8000)
 
 ---
 
-## 🔒 Security & Standards
+## 🔒 Global Security & Error Handling
 
-### 🔑 Authentication
-All endpoints (excluding `/api/auth/*`) require a valid **JWT Access Token**. 
-Include it in your HTTP headers:
-```http
-Authorization: Bearer <your_access_token>
-```
+**Authentication:** 
+All endpoints (except `/api/auth/*`) require a valid JWT access token passed in the HTTP Authorization header:
+`Authorization: Bearer <your_access_token>`
 
-### ⚠️ Error Protocols
-Standardized JSON error responses are returned for non-2xx statuses:
-
-| Status Code | Label | Typical Context |
-| :--- | :--- | :--- |
-| `400` | **Bad Request** | Missing fields, invalid file types, or malformed JSON. |
-| `401` | **Unauthorized** | Missing or expired JWT access token. |
-| `403` | **Forbidden** | Resource ownership mismatch (Ownership check failed). |
-| `404` | **Not Found** | Specified Report or Record ID does not exist. |
-| `500` | **Server Error** | Internal system fault or unexpected crash. |
+**Standard Error Responses:**
+- `400 Bad Request`: Invalid request parameters, missing fields, or malformed JSON data.
+- `401 Unauthorized`: Missing or invalid JWT access token.
+- `403 Forbidden`: User does not have access to the requested resource (e.g., trying to access another user's report).
+- `404 Not Found`: The requested resource (report or record) does not exist.
+- `500 Internal Server Error`: An unexpected error occurred while processing the request on the server.
 
 ---
 
-## 🔐 Authentication API
+## 🔐 Authentication
 
 ### 1. Register User
-`POST /api/auth/register/`  
-Create a new system user.
+**Endpoint:** `POST /api/auth/register`  
+**Description:** Register a new user in the system.
 
-**Request Body:**
+**Request Body (JSON):**
 ```json
 {
-  "email": "admin@utc.gov.ua",
+  "email": "user@example.com",
   "password": "secure_password",
-  "name": "Admin User"
+  "name": "User Name"
 }
 ```
+**Success Response (201 Created):**
+Returns the created user object data.
 
 ### 2. Login User
-`POST /api/auth/login/`  
-Authenticate and retrieve an access token.
+**Endpoint:** `POST /api/auth/login`  
+**Description:** Authenticate a user and receive an access token.
 
+**Request Body (JSON):**
+```json
+{
+  "email": "user@example.com",
+  "password": "secure_password"
+}
+```
 **Success Response (200 OK):**
 ```json
 {
-  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "access_token": "your_jwt_token_here",
   "token_type": "Bearer"
 }
 ```
 
 ---
 
-## 📊 Report Management
+## 📊 Reports
 
-### 3. Create Report (FileUpload)
-`POST /api/reports/`  
-Uploads land and property `.xlsx` files for synchronization analysis.
+### 3. Create Report (Upload)
+**Endpoint:** `POST /api/reports`  
+**Description:** Uploads two `.xlsx` files ("land" and "property"), processes them, generates a comprehensive report, and returns the unique report identifier.
 
-*   **Security**: `Bearer Token`
-*   **Content-Type**: `multipart/form-data`
-*   **Payload**:
-    *   `land` (file): Required. Excel land record.
-    *   `property` (file): Required. Excel property record.
+**Security:** Requires Bearer Token  
+**Content-Type:** `multipart/form-data`  
+**Form-Data Parameters:**
+- `land` (file): Required. The `.xlsx` file containing land data.
+- `property` (file): Required. The `.xlsx` file containing property data.
 
-**Response:**
+**Success Response (201 Created):**
 ```json
 {
-  "report_id": "550e8400-e29b-41d4-a716-446655440000"
+  "report_id": "uuid-string-here"
 }
 ```
 
 ---
 
-## 📝 Record Analysis
+## 📝 Report Records
 
-### Data Validation Problems
-When files are merged, discrepancies are flagged using the following enums:
+### Data Validation Problems (Enum)
+Records may have discrepancies or missing data when merged from "land" and "property" sources. The `problems` array in a record will contain enum strings representing these issues.
 
-| Problem ID | Description |
-| :--- | :--- |
-| `edrpou_of_land_user` | Mismatch or missing EDRPOU code. |
-| `land_user` | Discrepancy in Operator/Owner name. |
-| `location` | Conflicting address or coordinate data. |
-| `area` | Variance in reported land/property area. |
-| `purpose` | Mismatch in land use classification. |
-| `share_of_ownership` | Conflicting ownership percentage records. |
+**Available Problem Types:**
+- `edrpou_of_land_user`: EDRPOU code mismatch or missing data.
+- `land_user`: Operator/owner name mismatch between documents.
+- `location`: Conflicting location data between the sources.
+- `area`: Significant deviation in defined land area.
+- `date_of_state_registration_of_ownership`: Registration dates do not match.
+- `share_of_ownership`: Conflicting ownership shares.
+- `purpose`: Purpose of the land mismatch.
 
-### 4. List Report Records
-`GET /api/reports/{report_id}/records/`  
-Paginated retrieval of records with advanced filtering.
+### 4. Get Report Records
+**Endpoint:** `GET /api/reports/{report_id}/records`  
+**Description:** Retrieves a paginated list of all records associated with a specific `report_id`. Supports dynamic filtering and sorting.
 
-**Query Parameters:**
-- `problem` (string): Filter by enum (e.g. `?problem=area`).
-- `has_problems` (bool): `true` for flagged, `false` for valid.
-- `location` (string): Fuzzy search by area name.
-- `sort_by`: Field name or `count_of_problems`.
-- `order`: `asc` or `desc`.
+**Security:** Requires Bearer Token  
+**Query Parameters (All Optional):**
+- `problem` (string): Filter records that contain a specific problem enum (e.g., `?problem=area`).
+- `has_problems` (boolean): Pass `true` to return only records with at least one problem, or `false` for fully valid records.
+- `location` (string): Filter by exact or partial match of location.
+- `cadastral_number` (string)
+- `tax_number_of_pp` (string)
+- `koatuu` (string)
+- `sort_by` (string): Field name to sort by (e.g., `area`, `date_of_state_registration_of_ownership`) or `count_of_problems`.
+- `order` (string): Sorting order, either `asc` or `desc` (default: `asc`).
+- `page` (integer): Page number for pagination (default: 1).
+- `size` (integer): Number of items per page (default: 50).
 
----
-
-## 📄 AI & Export Functions
-
-### 5. Bulk Export Reports
-`POST /api/reports/export/`  
-Generates a combined PDF report for multiple sync sessions.
-
-**Request Body:**
+**Success Response (200 OK):**
 ```json
 {
-  "report_ids": ["uuid-1", "uuid-2"]
+  "items": [
+    {
+      "report_id": "uuid-string-here",
+      "record_id": "uuid-string-here",
+      "problems": ["area", "location"],
+      "land_data": { /* ... */ },
+      "property_data": { /* ... */ }
+    }
+  ],
+  "total": 100,
+  "page": 1,
+  "size": 50
 }
 ```
 
-### 6. AI Discrepancy Analysis
-`POST /api/reports/ai-analysis/`  
-Natural language processing for answering complex questions about asset data.
+### 5. Get Record Details
+**Endpoint:** `GET /api/reports/{report_id}/records/{record_id}`  
+**Description:** Retrieves detailed information for a specific record inside a given report. 
 
-**Request Body:**
+**Security:** Requires Bearer Token  
+**Success Response (200 OK):**
 ```json
 {
-  "report_id": "uuid-sync-unit",
-  "question": "Which records show the highest risk of revenue loss?"
+  "report_id": "uuid-string-here",
+  "record_id": "uuid-string-here",
+  "problems": [
+    "area"
+  ], 
+  "land_data": {
+    "cadastral_number": "string",
+    "koatuu": "string",
+    "form_of_ownership": "string",
+    "purpose": "string",
+    "location": "string",
+    "type_of_agricultural_land": "string",
+    "area": 0.0,
+    "average_monetary_valuation": 0.0,
+    "edrpou_of_land_user": "string",
+    "land_user": "string",
+    "share_of_ownership": 0.0,
+    "date_of_state_registration_of_ownership": "2026-04-18T10:00:00Z",
+    "record_number_of_ownership": "string",
+    "authority_that_performed_state_registration_of_ownership": "string",
+    "type": "string",
+    "subtype": "string"
+  },
+  "property_data": {
+    "tax_number_of_pp": "string",
+    "name_of_the_taxpayer": "string",
+    "type_of_object": "string",
+    "address_of_the_object": "string",
+    "date_of_state_registration_of_ownership": "2026-04-18T10:00:00Z",
+    "date_of_state_registration_of_pledge_of_ownership": "2026-04-18T10:00:00Z",
+    "total_area": 0.0,
+    "type_of_joint_ownership": "string",
+    "share_of_ownership": 0.0
+  }
 }
 ```
 
 ---
 
-> [!TIP]
-> To export specific **records** from a single report, use:
-> `POST /api/reports/{report_id}/export/` with `{"record_ids": ["id1", "id2"]}`.
+## 📄 Export
+
+### 6. Bulk Export Reports as PDF
+**Endpoint:** `POST /api/reports/export`  
+**Description:** Accepts an array of report identifiers and generates a combined PDF containing the requested reports.
+
+**Security:** Requires Bearer Token  
+**Request Body (JSON):**
+```json
+{
+  "report_ids": [
+    "uuid-1",
+    "uuid-2"
+  ]
+}
+```
+
+> **Note to developer:** If the original intent behind the old `GET /report_id/export/` endpoint was to bulk export multiple precise **records** from a single report rather than multiple whole reports themselves, you should use `POST /api/reports/{report_id}/export` with a payload of `{"record_ids": ["uuid-1", "uuid-2"]}` instead.
+
+**Response Content-Type:** `application/pdf` (Binary file content)
