@@ -20,9 +20,8 @@ backend-down:
 
 reset:
 	docker compose down
-	@# Використовуємо rm -f, що працює в git bash / mingw на Windows
-	rm -f backend/db.sqlite3
+	@python -c "import os; os.remove('backend/db.sqlite3') if os.path.exists('backend/db.sqlite3') else None"
 	docker compose up -d --build
-	@# Очікуємо 2 секунди, поки контейнер прокинеться
-	sleep 2
+	@echo Waiting for database to start...
+	@python -c "import time; time.sleep(5)"
 	docker compose exec backend python manage.py migrate
