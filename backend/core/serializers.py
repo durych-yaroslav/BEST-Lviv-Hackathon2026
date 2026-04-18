@@ -4,18 +4,23 @@ from .models import Report, Record
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
+    name = serializers.CharField(source='first_name', required=False)
 
     class Meta:
         model = User
-        fields = ('id', 'username', 'email', 'password')
+        fields = ('id', 'email', 'name', 'password')
+        extra_kwargs = {'email': {'required': True}}
 
     def create(self, validated_data):
+        email = validated_data.get('email', '')
         user = User.objects.create_user(
-            username=validated_data['username'],
-            email=validated_data.get('email', ''),
+            username=email, # Django requires username, use email
+            email=email,
+            first_name=validated_data.get('first_name', ''),
             password=validated_data['password']
         )
         return user
+
 
 
 class RecordSerializer(serializers.ModelSerializer):
