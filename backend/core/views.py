@@ -95,9 +95,17 @@ class ReportCreateView(views.APIView):
             )
 
         report = Report.objects.create(user=request.user)
-        records_data = process_excel_files(land_file, property_file)
+        try:
+            records_data = process_excel_files(land_file, property_file)
+        except Exception as e:
+            report.delete() # Cleanup
+            return Response(
+                {"error": f"Invalid Excel file content: {str(e)}"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         records_to_create = [
+
             Record(
                 report=report,
                 problems=data.get('problems', []),
