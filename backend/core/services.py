@@ -252,6 +252,56 @@ def _compute_match_score(land: Dict[str, Any], prop: Dict[str, Any]) -> float:
     return score
 
 
+def _token_overlap(a: Any, b: Any) -> float:
+    """Fast token-overlap similarity (Jaccard on word tokens). O(n) not O(n²)."""
+    na, nb = _norm_str(a), _norm_str(b)
+    if na is None or nb is None:
+        return 0.0
+    if na == nb:
+        return 1.0
+    sa = set(na.split())
+    sb = set(nb.split())
+    if not sa or not sb:
+        return 0.0
+    intersection = sa & sb
+    union = sa | sb
+    return len(intersection) / len(union)
+
+
+def _compute_match_score_fast(land: Dict[str, Any], prop: Dict[str, Any]) -> float:
+    """
+    Lightweight match score using token-overlap for strings instead of
+    SequenceMatcher. Safe to run on larger leftover sets without hanging.
+    """
+    score = 0.0
+
+    # 1. EDRPOU ↔ tax_number_of_pp
+    score += WEIGHT_EDRPOU * _digits_similarity(
+        land.get("edrpou_of_land_user"),
+        prop.get("tax_number_of_pp"),
+    )
+
+    # 2. Location ↔ address (fast token overlap)
+    score += WEIGHT_LOCATION * _token_overlap(
+        land.get("location"),
+        prop.get("address_of_the_object"),
+    )
+
+    # 3. Area ↔ total_area
+    score += WEIGHT_AREA * _float_similarity(
+        land.get("area"),
+        prop.get("total_area"),
+    )
+
+    # 4. Land user ↔ taxpayer name (fast token overlap)
+    score += WEIGHT_NAME * _token_overlap(
+        land.get("land_user"),
+        prop.get("name_of_the_taxpayer"),
+    )
+
+    return score
+
+
 # ---------------------------------------------------------------------------
 # Problem detection
 # ---------------------------------------------------------------------------
@@ -343,56 +393,23 @@ def _make_record(
 
 
 # ---------------------------------------------------------------------------
-# Greedy best-match assignment
+# Two-phase matching: fast hash-join + bounded fuzzy fallback
 # ---------------------------------------------------------------------------
 
+# Cap for the fuzzy Phase-2 to guarantee bounded runtime
+_FUZZY_CAP = 500
 
-def _greedy_match(
-    land_rows: List[Dict[str, Any]],
+
+def _build_property_index(
     property_rows: List[Dict[str, Any]],
-) -> Tuple[List[Tuple[int, int]], List[int], List[int]]:
-    """
-    Greedy 1-to-1 matching of land rows to property rows.
-
-    1. Compute all (land_idx, prop_idx, score) where score >= MATCH_THRESHOLD.
-    2. Sort by descending score.
-    3. Greedily assign pairs, ensuring each row is used at most once.
-
-    Returns:
-        matched_pairs: list of (land_idx, prop_idx)
-        unmatched_land: list of land_idx
-        unmatched_prop: list of prop_idx
-    """
-    candidates: List[Tuple[float, int, int]] = []
-
-    for li, land in enumerate(land_rows):
-        for pi, prop in enumerate(property_rows):
-            score = _compute_match_score(land, prop)
-            if score >= MATCH_THRESHOLD:
-                candidates.append((score, li, pi))
-
-    # Sort descending by score
-    candidates.sort(key=lambda x: x[0], reverse=True)
-
-    used_land: set = set()
-    used_prop: set = set()
-    matched_pairs: List[Tuple[int, int]] = []
-
-    for score, li, pi in candidates:
-        if li not in used_land and pi not in used_prop:
-            matched_pairs.append((li, pi))
-            used_land.add(li)
-            used_prop.add(pi)
-
-    unmatched_land = [i for i in range(len(land_rows)) if i not in used_land]
-    unmatched_prop = [i for i in range(len(property_rows)) if i not in used_prop]
-
-    return matched_pairs, unmatched_land, unmatched_prop
-
-
-# ---------------------------------------------------------------------------
-# Public API — merge_records
-# ---------------------------------------------------------------------------
+) -> Dict[str, List[int]]:
+    """Build index: normalised tax_number_of_pp digits → list of row indices."""
+    index: Dict[str, List[int]] = {}
+    for i, row in enumerate(property_rows):
+        tax = _norm_digits(row.get("tax_number_of_pp"))
+        if tax:
+            index.setdefault(tax, []).append(i)
+    return index
 
 
 def merge_records(
@@ -403,47 +420,88 @@ def merge_records(
     """
     Merge land and property rows into unified report records.
 
-    Matching uses a multi-signal weighted scoring system:
-      - EDRPOU ↔ tax_number_of_pp (50%)
-      - Location ↔ address (25%)
-      - Area ↔ total_area (15%)
-      - Land user ↔ taxpayer name (10%)
+    **Phase 1 — Exact hash-join (O(n+m)):**
+      Match by edrpou_of_land_user ↔ tax_number_of_pp (digits-only).
+      Each property row is consumed at most once (first-come-first-served).
 
-    Pairs scoring >= MATCH_THRESHOLD are greedily matched 1-to-1.
+    **Phase 2 — Fuzzy fallback (bounded):**
+      For leftover rows only, compute a lightweight similarity score
+      (location + area + name — no expensive SequenceMatcher on huge sets)
+      and greedily assign pairs above MATCH_THRESHOLD.
+      Capped at _FUZZY_CAP×_FUZZY_CAP to never hang.
+
     For matched pairs the corresponding fields are compared and
     discrepancies are listed in the `problems` array.
-
-    Parameters
-    ----------
-    land_rows : list[dict]
-        Rows parsed from the land registry XLSX.
-    property_rows : list[dict]
-        Rows parsed from the property registry XLSX.
-    report_id : str
-        UUID string of the parent report.
-
-    Returns
-    -------
-    list[dict]
-        Records matching the API schema.
     """
-    matched_pairs, unmatched_land, unmatched_prop = _greedy_match(
-        land_rows, property_rows,
-    )
-
     records: List[Dict[str, Any]] = []
 
-    # 1. Matched pairs
-    for li, pi in matched_pairs:
-        records.append(_make_record(report_id, land_rows[li], property_rows[pi]))
+    # ── Phase 1: exact EDRPOU ↔ tax_number hash-join ──────────────────────
+    prop_index = _build_property_index(property_rows)
+    matched_land: set[int] = set()
+    matched_prop: set[int] = set()
 
-    # 2. Unmatched land rows
-    for li in unmatched_land:
-        records.append(_make_record(report_id, land_rows[li], {}))
+    for li, land in enumerate(land_rows):
+        edrpou = _norm_digits(land.get("edrpou_of_land_user"))
+        if not edrpou:
+            continue
+        candidates = prop_index.get(edrpou, [])
+        for pi in candidates:
+            if pi not in matched_prop:
+                # Pair found
+                matched_land.add(li)
+                matched_prop.add(pi)
+                records.append(
+                    _make_record(report_id, land, property_rows[pi])
+                )
+                break  # 1-to-1: move to next land row
 
-    # 3. Unmatched property rows
-    for pi in unmatched_prop:
-        records.append(_make_record(report_id, {}, property_rows[pi]))
+    # ── Phase 2: fuzzy matching on leftovers (bounded) ────────────────────
+    remaining_land = [
+        (li, land_rows[li])
+        for li in range(len(land_rows))
+        if li not in matched_land
+    ]
+    remaining_prop = [
+        (pi, property_rows[pi])
+        for pi in range(len(property_rows))
+        if pi not in matched_prop
+    ]
+
+    # Only run fuzzy matching if both sides have leftovers and the set is small
+    if remaining_land and remaining_prop:
+        rl = remaining_land[:_FUZZY_CAP]
+        rp = remaining_prop[:_FUZZY_CAP]
+
+        # Use a lightweight score: skip SequenceMatcher, use simple token overlap
+        candidates_scored: List[Tuple[float, int, int]] = []
+        for li, land in rl:
+            for pi, prop in rp:
+                score = _compute_match_score_fast(land, prop)
+                if score >= MATCH_THRESHOLD:
+                    candidates_scored.append((score, li, pi))
+
+        candidates_scored.sort(key=lambda x: x[0], reverse=True)
+        used_l: set[int] = set()
+        used_p: set[int] = set()
+
+        for score, li, pi in candidates_scored:
+            if li not in used_l and pi not in used_p:
+                used_l.add(li)
+                used_p.add(pi)
+                matched_land.add(li)
+                matched_prop.add(pi)
+                records.append(
+                    _make_record(report_id, land_rows[li], property_rows[pi])
+                )
+
+    # ── Unmatched leftovers ───────────────────────────────────────────────
+    for li in range(len(land_rows)):
+        if li not in matched_land:
+            records.append(_make_record(report_id, land_rows[li], {}))
+
+    for pi in range(len(property_rows)):
+        if pi not in matched_prop:
+            records.append(_make_record(report_id, {}, property_rows[pi]))
 
     return records
 
