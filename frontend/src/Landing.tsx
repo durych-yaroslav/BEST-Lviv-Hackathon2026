@@ -15,9 +15,12 @@ export default function Landing() {
           >
             Увійти
           </Link>
-          <button className="px-5 py-2.5 md:px-7 rounded-full font-medium bg-[#556B2F] text-white hover:bg-[#6B8E23] shadow-md hover:shadow-lg transition-all duration-200">
+          <Link 
+            to="/register"
+            className="px-5 py-2.5 md:px-7 rounded-full font-medium bg-[#556B2F] text-white hover:bg-[#6B8E23] shadow-md hover:shadow-lg transition-all duration-200"
+          >
             Зареєструватись
-          </button>
+          </Link>
         </div>
       </nav>
 

@@ -1,0 +1,102 @@
+import { Link } from 'react-router-dom';
+
+export default function Register() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 font-sans px-4">
+      <div className="max-w-md w-full bg-white rounded-2xl shadow-lg shadow-black/5 p-8 border border-gray-100">
+        <h2 className="text-3xl font-bold text-center text-[#2F4F4F] mb-8">
+          Реєстрація
+        </h2>
+        
+        <form className="space-y-5">
+          {/* Name Input */}
+          <div>
+            <label 
+              htmlFor="name" 
+              className="block text-sm font-medium text-gray-700 mb-2"
+            >
+              Ім'я та прізвище
+            </label>
+            <input 
+              type="text" 
+              id="name" 
+              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#556B2F]/50 focus:border-[#556B2F] transition-all"
+              placeholder="Олександр Коваленко"
+              required
+            />
+          </div>
+
+          {/* Email Input */}
+          <div>
+            <label 
+              htmlFor="email" 
+              className="block text-sm font-medium text-gray-700 mb-2"
+            >
+              Електронна пошта
+            </label>
+            <input 
+              type="email" 
+              id="email" 
+              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#556B2F]/50 focus:border-[#556B2F] transition-all"
+              placeholder="name@example.com"
+              required
+            />
+          </div>
+
+          {/* Password Input */}
+          <div>
+            <label 
+              htmlFor="password" 
+              className="block text-sm font-medium text-gray-700 mb-2"
+            >
+              Пароль
+            </label>
+            <input 
+              type="password" 
+              id="password" 
+              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#556B2F]/50 focus:border-[#556B2F] transition-all"
+              placeholder="••••••••"
+              required
+            />
+          </div>
+
+          {/* Confirm Password Input */}
+          <div>
+            <label 
+              htmlFor="confirm-password" 
+              className="block text-sm font-medium text-gray-700 mb-2"
+            >
+              Підтвердження пароля
+            </label>
+            <input 
+              type="password" 
+              id="confirm-password" 
+              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#556B2F]/50 focus:border-[#556B2F] transition-all"
+              placeholder="••••••••"
+              required
+            />
+          </div>
+
+          {/* Submit Button */}
+          <button 
+            type="submit" 
+            className="w-full py-4 rounded-xl bg-[#556B2F] text-white font-semibold hover:bg-[#4a5f29] shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 mt-2"
+          >
+            Зареєструватися
+          </button>
+
+          {/* Navigation Link */}
+          <p className="text-center text-sm text-gray-500 mt-6">
+            Вже є акаунт?{' '}
+            <Link 
+              to="/login" 
+              className="font-medium text-[#556B2F] hover:text-[#4a5f29] transition-colors"
+            >
+              Увійти
+            </Link>
+          </p>
+        </form>
+      </div>
+    </div>
+  );
+}
