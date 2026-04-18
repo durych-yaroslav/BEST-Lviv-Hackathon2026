@@ -63,35 +63,48 @@ export default function Dashboard() {
     }
   };
 
+  const [error, setError] = useState<string | null>(null);
+
   const handleAnalyze = async () => {
     if (!landFile || !propertyFile) {
-      alert('Будь ласка, завантажте обидва файли (Реєстр 1 та Реєстр 2) перед аналізом.');
+      setError('Будь ласка, завантажте обидва файли (Реєстр 1 та Реєстр 2) перед аналізом.');
+      return;
+    }
+
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setError('Ви не авторизовані. Будь ласка, увійдіть в систему знову.');
+      navigate('/login');
       return;
     }
 
     setLoading(true);
+    setError(null);
     try {
       const formData = new FormData();
       formData.append('land', landFile);
       formData.append('property', propertyFile);
 
-      const response = await fetch('/api/reports', {
+      // NOTE: Do NOT set Content-Type manually — fetch sets multipart boundary automatically.
+      // NOTE: Trailing slash required by Django's APPEND_SLASH middleware.
+      const response = await fetch('/api/reports/', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${token}`,
         },
         body: formData,
       });
 
       if (!response.ok) {
-        throw new Error('Помилка при створенні звіту');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || errorData.detail || errorData.message || `Помилка сервера (${response.status})`);
       }
 
       const data = await response.json();
-      // alert(`Аналіз успішно завершено! ID звіту: ${data.report_id}`);
       navigate(`/report/${data.report_id}`);
     } catch (err: any) {
-      alert(err.message || 'Сталася помилка при відправці файлів');
+      console.error('API Error:', err);
+      setError(err.message || 'Сталася помилка при з\'єднанні з сервером.');
     } finally {
       setLoading(false);
     }
@@ -175,13 +188,21 @@ export default function Dashboard() {
 
         </div>
 
-        {/* Action Button */}
-        <div className="w-full max-w-[98%] flex justify-end pb-4">
+        {/* Action Button & Error */}
+        <div className="w-full max-w-[98%] flex flex-col items-end pb-4">
+          {error && (
+            <div className="mb-3 w-full p-3 bg-red-50 border border-red-100 text-red-600 text-sm rounded-xl">
+              <span className="font-bold">Помилка:</span> {error}
+            </div>
+          )}
           <button 
             onClick={handleAnalyze}
             disabled={loading}
-            className="px-12 py-4 rounded-full bg-[#556B2F] text-white font-bold text-lg hover:bg-[#4a5d28] shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all duration-300 transform disabled:opacity-70 disabled:hover:-translate-y-0"
+            className="px-12 py-4 rounded-full bg-[#556B2F] text-white font-bold text-lg hover:bg-[#4a5d28] shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all duration-300 transform disabled:opacity-70 disabled:hover:-translate-y-0 flex items-center gap-3"
           >
+            {loading && (
+              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            )}
             {loading ? 'Аналізується...' : 'Аналізувати'}
           </button>
         </div>
