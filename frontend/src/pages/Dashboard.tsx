@@ -1,9 +1,11 @@
 import { useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import Navbar from '../components/Navbar';
 import PreviewTable from '../components/PreviewTable';
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const [landFile, setLandFile] = useState<File | null>(null);
   const [propertyFile, setPropertyFile] = useState<File | null>(null);
   const [landData, setLandData] = useState<any[] | null>(null);
@@ -86,7 +88,8 @@ export default function Dashboard() {
       }
 
       const data = await response.json();
-      alert(`Аналіз успішно завершено! ID звіту: ${data.report_id}`);
+      // alert(`Аналіз успішно завершено! ID звіту: ${data.report_id}`);
+      navigate(`/report/${data.report_id}`);
     } catch (err: any) {
       alert(err.message || 'Сталася помилка при відправці файлів');
     } finally {

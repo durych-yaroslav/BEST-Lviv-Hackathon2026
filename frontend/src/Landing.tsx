@@ -15,8 +15,11 @@ export default function Landing() {
     <div className="min-h-screen flex flex-col font-sans bg-[#F8F9FA] text-[#2F4F4F]">
       {/* Navbar */}
       <nav className="w-full py-6 px-10 flex justify-between items-center bg-white shadow-sm">
-        <div className="text-xl md:text-2xl font-bold text-[#556B2F] tracking-tight">
-          Юніфай
+        <div className="flex items-center gap-2">
+          <img src="/logo.png" alt="Logo" className="w-8 h-8 md:w-10 md:h-10 object-contain" />
+          <div className="text-xl md:text-2xl font-bold text-[#556B2F] tracking-tight">
+            Юніфай
+          </div>
         </div>
         <div className="flex gap-3 md:gap-4">
           <Link 
