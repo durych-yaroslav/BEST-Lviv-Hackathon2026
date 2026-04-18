@@ -1,7 +1,7 @@
 from django.urls import path
-from rest_framework_simplejwt.views import TokenObtainPairView
 from .views import (
-    RegisterView, 
+    RegisterView,
+    CustomTokenLoginView,
     ReportCreateView, 
     RecordListView,
     RecordDetailView, 
@@ -11,7 +11,7 @@ from .views import (
 urlpatterns = [
     # Auth endpoints
     path('auth/register/', RegisterView.as_view(), name='auth_register'),
-    path('auth/login/', TokenObtainPairView.as_view(), name='auth_login'),
+    path('auth/login/', CustomTokenLoginView.as_view(), name='auth_login'),
 
     # Reports
     path('reports/', ReportCreateView.as_view(), name='report_create'),
