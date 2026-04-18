@@ -775,6 +775,11 @@ def process_excel_files(land_file, property_file) -> list:
     land_df = _smart_rename_columns(land_df, LAND_COLUMN_ALIASES)
     property_df = _smart_rename_columns(property_df, PROPERTY_COLUMN_ALIASES)
 
+    # Convert land area from hectares (га) → square meters (м²)
+    # The land table uses "Площа, га" while the property table uses "Загальна площа" in m²
+    if "area" in land_df.columns:
+        land_df["area"] = pd.to_numeric(land_df["area"], errors="coerce") * 10_000
+
     land_rows = [_clean_for_json(r) for r in land_df.to_dict(orient="records")]
     property_rows = [_clean_for_json(r) for r in property_df.to_dict(orient="records")]
 

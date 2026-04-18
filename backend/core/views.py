@@ -164,7 +164,7 @@ class RecordListView(generics.ListAPIView):
         order = self.request.query_params.get('order', 'asc')
         if sort_by:
             prefix = '-' if order.lower() == 'desc' else ''
-            if sort_by == 'count_of_problems':
+            if sort_by in ('count_of_problems', 'problems'):
                 queryset = queryset.annotate(
                     problem_count=JSONArrayLength('problems'),
                 ).order_by(f'{prefix}problem_count')
