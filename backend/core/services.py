@@ -292,16 +292,19 @@ def merge_records(
 
 def _clean_for_json(row: dict) -> dict:
     """Replace NaN / NaT / numpy types with JSON-safe Python types."""
+    import datetime
     cleaned = {}
     for k, v in row.items():
-        if isinstance(v, float) and math.isnan(v):
+        if pd.isna(v):
             cleaned[k] = None
+        elif isinstance(v, (datetime.datetime, datetime.date)):
+            cleaned[k] = v.isoformat()
         elif isinstance(v, pd.Timestamp):
             cleaned[k] = v.isoformat()
         elif isinstance(v, (np.integer,)):
             cleaned[k] = int(v)
         elif isinstance(v, (np.floating,)):
-            cleaned[k] = None if np.isnan(v) else float(v)
+            cleaned[k] = float(v)
         else:
             cleaned[k] = v
     return cleaned
