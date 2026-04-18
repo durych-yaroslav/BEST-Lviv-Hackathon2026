@@ -15,7 +15,7 @@ export default function Navbar({ username = "Адміністратор" }: Navb
   return (
     <nav className="w-full py-6 px-6 md:px-10 flex justify-between items-center bg-white shadow-sm font-sans">
       <div className="text-xl md:text-2xl font-bold text-[#556B2F] tracking-tight">
-        <Link to="/">Автоматизація обліку активів в ОТГ</Link>
+        <Link to="/">Юніфай</Link>
       </div>
       <div className="flex items-center gap-6">
         <span className="text-[#2F4F4F] font-medium hidden sm:block">

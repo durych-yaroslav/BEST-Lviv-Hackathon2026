@@ -16,7 +16,7 @@ export default function Landing() {
       {/* Navbar */}
       <nav className="w-full py-6 px-10 flex justify-between items-center bg-white shadow-sm">
         <div className="text-xl md:text-2xl font-bold text-[#556B2F] tracking-tight">
-          Автоматизація обліку активів в ОТГ
+          Юніфай
         </div>
         <div className="flex gap-3 md:gap-4">
           <Link 
