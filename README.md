@@ -215,6 +215,10 @@ Records may have discrepancies or missing data when merged from "land" and "prop
 ```json
 {
   "report_id": "uuid-string-here",
+  "records": [
+    "uuid-1",
+    "uuid-2"
+  ],
   "question": "What are the main risks found in this report?"
 }
 ```
