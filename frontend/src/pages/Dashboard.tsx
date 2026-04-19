@@ -95,6 +95,13 @@ export default function Dashboard() {
         body: formData,
       });
 
+      if (response.status === 401) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('username');
+        navigate('/login');
+        return;
+      }
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || errorData.detail || errorData.message || `Помилка сервера (${response.status})`);
