@@ -24,4 +24,3 @@ services:
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
     command: sh -c "python manage.py migrate --noinput && python manage.py runserver 0.0.0.0:8000"
-

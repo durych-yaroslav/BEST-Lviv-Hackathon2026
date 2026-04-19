@@ -12,8 +12,14 @@ from django.db.models.expressions import RawSQL
 from .models import Report, Record
 from .serializers import UserRegistrationSerializer, RecordSerializer
 from .services import process_excel_files
-from .pdf_service import PDFGenerator
+from .pdf_service import PDFGenerator, FONT_PATH, register_fonts
 from .pagination import StandardResultsSetPagination
+
+import io
+from django.template.loader import get_template
+from django.utils import timezone
+from django.shortcuts import get_object_or_404
+from xhtml2pdf import pisa
 
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
@@ -232,6 +238,93 @@ class ReportExportView(views.APIView):
         filename = f"report_{str(report.id)[:8]}.pdf"
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
         return response
+
+
+class ReportPDFExportView(views.APIView):
+    """
+    Analytical PDF Report generation using xhtml2pdf.
+    GET /api/reports/{report_id}/export/
+    """
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request, report_id, *args, **kwargs):
+        # 1. Fetch data
+        report = get_object_or_404(Report, id=report_id)
+        
+        # Permission check
+        if report.user and report.user != request.user:
+            return Response({"error": "Forbidden: You do not own this report."}, status=403)
+
+        records = report.records.all()
+        total_records = records.count()
+        total_with_problems = records.exclude(problems=[]).count()
+
+        # 2. Statistics (Aggregation)
+        problem_counts = {}
+        for record in records:
+            for p in record.problems:
+                problem_counts[p] = problem_counts.get(p, 0) + 1
+        
+        # Sort problem_counts by frequency descending
+        sorted_problems = sorted(problem_counts.items(), key=lambda x: x[1], reverse=True)
+
+        # 3. Top 10 Critical
+        # Identify top 10 most critical records (by number of problems)
+        top_10 = sorted(records, key=lambda r: len(r.problems), reverse=True)[:10]
+
+        # Ensure font is available for Cyrillic
+        try:
+            register_fonts()
+        except:
+            pass
+
+        # 4. Render Context
+        context = {
+            'report': report,
+            'total_records': total_records,
+            'total_with_problems': total_with_problems,
+            'problem_counts': sorted_problems,
+            'top_10': top_10,
+            'date': timezone.now(),
+            'font_path': FONT_PATH, # Passed to @font-face in CSS
+        }
+
+        # 5. Generate PDF
+        template_path = 'report_template.html'
+        template = get_template(template_path)
+        html = template.render(context)
+        
+        result = io.BytesIO()
+
+        def link_callback(uri, rel):
+            """
+            Convert HTML URIs to absolute system paths so xhtml2pdf can access those
+            resources on disk.
+            """
+            import os
+            from django.conf import settings
+            
+            # If it's the font path we passed in context
+            if uri == FONT_PATH:
+                return FONT_PATH
+                
+            # Fallback for static/media if needed
+            return uri
+
+        pdf = pisa.pisaDocument(
+            io.BytesIO(html.encode("UTF-8")), 
+            result, 
+            encoding='UTF-8',
+            link_callback=link_callback
+        )
+        
+        if not pdf.err:
+            response = HttpResponse(result.getvalue(), content_type='application/pdf')
+            filename = f"analytical_report_{str(report.id)[:8]}.pdf"
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            return response
+        
+        return Response({"error": "Failed to generate PDF report."}, status=500)
 
 
 # ────────────────────────── AI Analysis ───────────────────────────
