@@ -413,8 +413,14 @@ class AIAnalysisView(views.APIView):
 
         import json as _json
         context_str = _json.dumps(records_context, ensure_ascii=False, default=str)
-        user_message = f"Here are the records from the report:\n\n{context_str}\n\nQuestion: {question}"
 
+        user_message = (
+            f"Here are the records from the report:\n\n"
+            f"{context_str}\n\n"
+            f"Question: {question}"
+        )
+
+        # ── Call OpenAI ──
         from django.conf import settings as django_settings
         api_key = django_settings.OPENAI_API_KEY
         model = django_settings.OPENAI_MODEL
