@@ -192,6 +192,108 @@ class RecordDetailView(generics.RetrieveAPIView):
         return generics.get_object_or_404(Record, report=report, id=record_id)
 
 
+# ────────────────────────── PDF helpers ───────────────────────────
+
+PROBLEM_LABELS_EN = {
+    'edrpou_of_land_user':                     'Organization ID (EDRPOU)',
+    'land_user':                                'Land User / Owner',
+    'location':                                 'Location / Address',
+    'area':                                     'Area (sq.m)',
+    'date_of_state_registration_of_ownership':  'Registration Date',
+    'share_of_ownership':                       'Ownership Share',
+    'purpose':                                  'Usage Purpose',
+}
+
+
+def _build_pdf_context(report, records_qs):
+    """
+    Aggregate stats and build the full template context for the PDF.
+    All per-record booleans are pre-computed here so the template
+    needs zero custom template tags.
+    """
+    records = list(records_qs)
+    total_records = len(records)
+    total_with_problems = sum(1 for r in records if r.problems)
+    total_clean = total_records - total_with_problems
+    problem_rate = round(total_with_problems / total_records * 100, 1) if total_records else 0
+
+    # ── Problem frequency table ──────────────────────────────────
+    freq: dict = {}
+    for rec in records:
+        for p in (rec.problems or []):
+            freq[p] = freq.get(p, 0) + 1
+
+    max_count = max(freq.values(), default=1)
+    problem_counts = []
+    for key, count in sorted(freq.items(), key=lambda x: x[1], reverse=True):
+        pct = round(count / total_records * 100, 1) if total_records else 0
+        problem_counts.append({
+            'key':       key,
+            'label':     PROBLEM_LABELS_EN.get(key, key),
+            'count':     count,
+            'pct':       pct,
+            'bar_width': round(count / max_count * 100),
+        })
+
+    # ── Top-10 most critical records ─────────────────────────────
+    top_10_records = sorted(records, key=lambda r: len(r.problems or []), reverse=True)[:10]
+
+    top_10 = []
+    for rec in top_10_records:
+        problems = rec.problems or []
+        top_10.append({
+            'record':            rec,
+            'problem_count':     len(problems),
+            # Human-readable labels for the pills row
+            'problem_labels_list': [PROBLEM_LABELS_EN.get(p, p) for p in problems],
+            # Pre-computed booleans — one per comparison row in the template
+            'has_land_user':  'land_user' in problems,
+            'has_edrpou':     'edrpou_of_land_user' in problems,
+            'has_location':   'location' in problems,
+            'has_area':       'area' in problems,
+            'has_purpose':    'purpose' in problems,
+            'has_date':       'date_of_state_registration_of_ownership' in problems,
+            'has_share':      'share_of_ownership' in problems,
+        })
+
+    return {
+        'report':              report,
+        'total_records':       total_records,
+        'total_with_problems': total_with_problems,
+        'total_clean':         total_clean,
+        'problem_rate':        problem_rate,
+        'problem_counts':      problem_counts,
+        'top_10':              top_10,
+        'date':                timezone.now(),
+        'font_path':           FONT_PATH,
+    }
+
+
+def _render_pdf(template_path: str, context: dict):
+    """Render an HTML template to PDF bytes via xhtml2pdf."""
+    try:
+        register_fonts()
+    except Exception:
+        pass
+
+    template = get_template(template_path)
+    html = template.render(context)
+    result = io.BytesIO()
+
+    def link_callback(uri, _rel):
+        if uri == FONT_PATH:
+            return FONT_PATH
+        return uri
+
+    pdf_status = pisa.pisaDocument(
+        io.BytesIO(html.encode('UTF-8')),
+        result,
+        encoding='UTF-8',
+        link_callback=link_callback,
+    )
+    return result.getvalue(), pdf_status.err
+
+
 # ────────────────────────── Export ────────────────────────────────
 
 class ReportExportView(views.APIView):
@@ -339,11 +441,14 @@ class AIAnalysisView(views.APIView):
         try:
             from openai import OpenAI
             client = OpenAI(api_key=api_key)
-            response = client.responses.create(
+            response = client.chat.completions.create(
                 model=model,
-                input=user_message,
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant analyzing property mismatch reports."},
+                    {"role": "user", "content": user_message}
+                ]
             )
-            answer = response.output_text
+            answer = response.choices[0].message.content
         except Exception as e:
             return Response(
                 {"error": f"AI analysis failed: {str(e)}"},
