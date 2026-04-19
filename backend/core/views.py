@@ -263,29 +263,49 @@ class AIAnalysisView(views.APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # ── Fetch records ──
+        # ── Fetch ALL records from the report ──
         report = _check_report_ownership(report_id, request.user)
-        if record_ids:
-            records = Record.objects.filter(report=report, id__in=record_ids)
-        else:
-            # If no specific record_ids given, use all records from the report
-            records = Record.objects.filter(report=report)
+        records = Record.objects.filter(report=report)
 
         if not records.exists():
             return Response(
-                {"error": "No records found for the given report and record IDs."},
+                {"error": "No records found for the given report."},
                 status=status.HTTP_404_NOT_FOUND,
             )
 
         # ── Build context for the AI ──
+        # record_ids contains FIELD NAMES (e.g. ["area", "total_area", "location"])
+        # Extract only those fields from each record's land_data and property_data
+        requested_fields = record_ids  # e.g. ["area", "total_area"]
+
         records_context = []
         for rec in records:
-            records_context.append({
-                "record_id": str(rec.id),
-                "problems": rec.problems,
-                "land_data": rec.land_data,
-                "property_data": rec.property_data,
-            })
+            entry = {"record_id": str(rec.id)}
+
+            if requested_fields:
+                # Extract only the requested fields from land_data and property_data
+                filtered_land = {
+                    k: v for k, v in (rec.land_data or {}).items()
+                    if k in requested_fields
+                }
+                filtered_property = {
+                    k: v for k, v in (rec.property_data or {}).items()
+                    if k in requested_fields
+                }
+                if filtered_land:
+                    entry["land_data"] = filtered_land
+                if filtered_property:
+                    entry["property_data"] = filtered_property
+                # Always include problems if "problems" is requested
+                if "problems" in requested_fields:
+                    entry["problems"] = rec.problems
+            else:
+                # No specific fields requested — send everything
+                entry["problems"] = rec.problems
+                entry["land_data"] = rec.land_data
+                entry["property_data"] = rec.property_data
+
+            records_context.append(entry)
 
         import json as _json
         context_str = _json.dumps(records_context, ensure_ascii=False, default=str)
