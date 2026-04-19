@@ -207,6 +207,51 @@ Records may have discrepancies or missing data when merged from "land" and "prop
 }
 ```
 
-> **Note to developer:** If the original intent behind the old `GET /report_id/export/` endpoint was to bulk export multiple precise **records** from a single report rather than multiple whole reports themselves, you should use `POST /api/reports/{report_id}/export` with a payload of `{"record_ids": ["uuid-1", "uuid-2"]}` instead.
+**Success Response (200 OK):**
+- **Content-Type:** `application/pdf`
+- **Body:** Binary PDF content.
 
-**Response Content-Type:** `application/pdf` (Binary file content)
+---
+
+### 7. Export Records from Report
+**Endpoint:** `POST /api/reports/{report_id}/export`  
+**Description:** Generates a PDF for specific records within a single report.
+
+**Security:** Requires Bearer Token  
+**Request Body (JSON):**
+```json
+{
+  "record_ids": [
+    "uuid-1",
+    "uuid-2"
+  ]
+}
+```
+
+**Success Response (200 OK):**
+- **Content-Type:** `application/pdf`
+- **Body:** Binary PDF content.
+
+---
+
+### 8. AI Analysis
+
+**Endpoint:** `POST /api/reports/ai-analysis`  
+**Description:** Accepts a report identifier and a natural language question, then uses AI to analyze the report and provide a relevant answer.
+
+**Security:** Requires Bearer Token  
+**Request Body (JSON):**
+```json
+{
+  "report_id": "uuid-string-here",
+  "record_ids": ["uuid-string-here", "uuid-string-here"],
+  "question": "What is the total area of all properties in this report?"
+}
+```
+
+**Success Response (200 OK):**
+```json
+{
+  "answer": "The total area of all properties in this report is 1000 square meters."
+}
+```
