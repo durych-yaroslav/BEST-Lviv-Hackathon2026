@@ -4,3 +4,4 @@ djangorestframework-simplejwt>=5.3,<6.0
 pandas==2.2.0
 openpyxl==3.1.2
 openai>=1.30,<2.0
+reportlab==4.2.2

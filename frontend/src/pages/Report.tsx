@@ -185,7 +185,7 @@ export default function Report() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterProblems, setFilterProblems] = useState(false);
+  const [filterProblem, setFilterProblem] = useState('');
   const [exportLoading, setExportLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -253,41 +253,35 @@ export default function Report() {
   const filteredRecords = useMemo(() => {
     let result = records;
 
-    if (filterProblems) {
-      result = result.filter(r => r.problems && r.problems.length > 0);
+    if (filterProblem) {
+      result = result.filter(r => r.problems && r.problems.includes(filterProblem));
     }
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       result = result.filter(r => {
-        try {
-          const cadastral = (r.land_data?.cadastral_number || '').toLowerCase();
-          const landUser = (r.land_data?.land_user || '').toLowerCase();
-          const location = (r.land_data?.location || '').toLowerCase();
-          const edrpou = (r.land_data?.edrpou_of_land_user || '').toLowerCase();
-          const taxpayer = (r.property_data?.name_of_the_taxpayer || '').toLowerCase();
-          const taxNum = (r.property_data?.tax_number_of_pp || '').toLowerCase();
-          return (
-            cadastral.includes(q) ||
-            landUser.includes(q) ||
-            location.includes(q) ||
-            edrpou.includes(q) ||
-            taxpayer.includes(q) ||
-            taxNum.includes(q)
-          );
-        } catch {
-          return false;
-        }
+        const cadastral  = String(r.land_data?.cadastral_number ?? '').toLowerCase();
+        const location   = String(r.land_data?.location ?? '').toLowerCase();
+        const address    = String(r.property_data?.address_of_the_object ?? '').toLowerCase();
+        const landUser   = String(r.land_data?.land_user ?? '').toLowerCase();
+        const taxpayer   = String(r.property_data?.name_of_the_taxpayer ?? '').toLowerCase();
+        return (
+          cadastral.includes(q) ||
+          location.includes(q)  ||
+          address.includes(q)   ||
+          landUser.includes(q)  ||
+          taxpayer.includes(q)
+        );
       });
     }
 
     return result;
-  }, [records, searchQuery, filterProblems]);
+  }, [records, searchQuery, filterProblem]);
 
-  // Reset to page 1 and clear selection whenever filter/search changes
+  // Reset to page 1 whenever filter/search changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, filterProblems]);
+  }, [searchQuery, filterProblem]);
 
   // ── Pagination slice ──────────────────────────────────────────────────────
   const totalPages = Math.max(1, Math.ceil(filteredRecords.length / PAGE_SIZE));
@@ -377,7 +371,7 @@ export default function Report() {
               <div className="relative w-80">
                 <input
                   type="text"
-                  placeholder="Пошук за кадастровим номером, ЄДРПОУ..."
+                  placeholder="Пошук: кадастровий №, адреса, землекористувач..."
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 focus:outline-none focus:bg-white focus:ring-2 focus:ring-slate-200 transition-all text-sm placeholder:text-gray-400"
@@ -388,15 +382,32 @@ export default function Report() {
                   </svg>
                 </span>
               </div>
-              <button
-                onClick={() => setFilterProblems(prev => !prev)}
-                className={`px-5 py-2.5 rounded-xl border text-sm font-medium hover:bg-gray-50 transition-colors shadow-sm inline-flex items-center gap-2 ${filterProblems ? 'bg-red-50 border-red-200 text-red-600' : 'bg-white border-gray-200 text-gray-700'}`}
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="relative">
+                <svg className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
                 </svg>
-                {filterProblems ? 'Лише з проблемами' : 'Фільтрація'}
-              </button>
+                <select
+                  value={filterProblem}
+                  onChange={e => setFilterProblem(e.target.value)}
+                  className={`pl-9 pr-8 py-2.5 rounded-xl border text-sm font-medium transition-colors shadow-sm appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-slate-200 ${
+                    filterProblem
+                      ? 'bg-red-50 border-red-200 text-red-700'
+                      : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  <option value="">Фільтрація</option>
+                  <option value="edrpou_of_land_user">ЄДРПОУ землекористувача</option>
+                  <option value="land_user">Землекористувач</option>
+                  <option value="location">Місцезнаходження</option>
+                  <option value="area">Площа</option>
+                  <option value="date_of_state_registration_of_ownership">Дата реєстрації права</option>
+                  <option value="share_of_ownership">Частка власності</option>
+                  <option value="purpose">Цільове призначення</option>
+                </select>
+                <svg className="w-4 h-4 text-gray-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
             </div>
             <div>
               <button
@@ -433,7 +444,7 @@ export default function Report() {
                 <span className="text-2xl font-bold text-green-600">{records.length - totalProblems}</span>
                 <span className="text-xs text-gray-500 font-medium leading-tight">Без<br />розбіжностей</span>
               </div>
-              {(searchQuery || filterProblems) && (
+              {(searchQuery || filterProblem) && (
                 <div className="bg-white rounded-xl px-5 py-3 shadow-sm border border-gray-100 flex items-center gap-3">
                   <span className="text-2xl font-bold text-slate-600">{filteredRecords.length}</span>
                   <span className="text-xs text-gray-500 font-medium leading-tight">Результатів<br />фільтру</span>
