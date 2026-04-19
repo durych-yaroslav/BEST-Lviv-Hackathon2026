@@ -218,6 +218,7 @@ export default function Report() {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterProblem, setFilterProblem] = useState('');
+  const [sortOrder, setSortOrder] = useState<'none' | 'asc' | 'desc'>('none');
   const [exportLoading, setExportLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -310,17 +311,23 @@ export default function Report() {
     return result;
   }, [records, searchQuery, filterProblem]);
 
-  // Reset to page 1 whenever filter/search changes
+  // Reset to page 1 whenever filter/search/sort changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, filterProblem]);
+  }, [searchQuery, filterProblem, sortOrder]);
 
-  // ── Pagination slice ──────────────────────────────────────────────────────
+  // ── Pagination slice (with optional sort) ────────────────────────────────
   const totalPages = Math.max(1, Math.ceil(filteredRecords.length / PAGE_SIZE));
   const paginatedRecords = useMemo(() => {
+    let sorted = [...filteredRecords];
+    if (sortOrder === 'desc') {
+      sorted.sort((a, b) => (b.problems?.length ?? 0) - (a.problems?.length ?? 0));
+    } else if (sortOrder === 'asc') {
+      sorted.sort((a, b) => (a.problems?.length ?? 0) - (b.problems?.length ?? 0));
+    }
     const start = (currentPage - 1) * PAGE_SIZE;
-    return filteredRecords.slice(start, start + PAGE_SIZE);
-  }, [filteredRecords, currentPage, PAGE_SIZE]);
+    return sorted.slice(start, start + PAGE_SIZE);
+  }, [filteredRecords, currentPage, PAGE_SIZE, sortOrder]);
 
   // ── Selection helpers ─────────────────────────────────────────────────────
   const toggleSelect = (id: string) => {
@@ -635,7 +642,35 @@ export default function Report() {
             />
             <div>Кадастровий номер</div>
             <div>Співпадіння</div>
-            <div>Розбіжності</div>
+            <button
+              onClick={() =>
+                setSortOrder(prev =>
+                  prev === 'none' ? 'desc' : prev === 'desc' ? 'asc' : 'none'
+                )
+              }
+              className="flex items-center gap-1.5 hover:text-slate-600 transition-colors group"
+              title="Сортувати за кількістю розбіжностей"
+            >
+              Розбіжності
+              <span className="inline-flex flex-col leading-none">
+                <svg
+                  className={`w-2.5 h-2.5 transition-colors ${
+                    sortOrder === 'asc' ? 'text-slate-700' : 'text-gray-300 group-hover:text-gray-400'
+                  }`}
+                  viewBox="0 0 10 6" fill="currentColor"
+                >
+                  <path d="M5 0l5 6H0z" />
+                </svg>
+                <svg
+                  className={`w-2.5 h-2.5 transition-colors ${
+                    sortOrder === 'desc' ? 'text-slate-700' : 'text-gray-300 group-hover:text-gray-400'
+                  }`}
+                  viewBox="0 0 10 6" fill="currentColor"
+                >
+                  <path d="M5 6L0 0h10z" />
+                </svg>
+              </span>
+            </button>
           </div>
 
           {/* Content States */}
