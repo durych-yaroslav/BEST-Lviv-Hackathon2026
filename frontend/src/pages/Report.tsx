@@ -129,15 +129,6 @@ const RecordRow: React.FC<RecordRowProps> = ({ record, defaultOpen = false, isSe
     <div className={`border rounded-xl bg-white mb-4 overflow-hidden shadow-sm p-2 transition-colors ${isSelected ? 'border-[#556B2F]/40 bg-[#556B2F]/5' : 'border-gray-100'
       }`}>
       <div className="flex items-center">
-        {/* Checkbox */}
-        <div className="pl-2 pr-3 flex-shrink-0" onClick={e => e.stopPropagation()}>
-          <input
-            type="checkbox"
-            checked={isSelected}
-            onChange={() => onToggleSelect(record.record_id)}
-            className="w-4 h-4 rounded border-gray-300 text-[#556B2F] cursor-pointer accent-[#556B2F]"
-          />
-        </div>
         {/* Row content */}
         <button
           onClick={() => setIsOpen(!isOpen)}
@@ -153,6 +144,15 @@ const RecordRow: React.FC<RecordRowProps> = ({ record, defaultOpen = false, isSe
             {mismatchCount} <span className="ml-1 font-normal opacity-80">розбіжностей</span>
           </span>
         </button>
+        {/* Checkbox — right side */}
+        <div className="pl-3 pr-2 flex-shrink-0" onClick={e => e.stopPropagation()}>
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={() => onToggleSelect(record.record_id)}
+            className="w-4 h-4 rounded border-gray-300 text-[#556B2F] cursor-pointer accent-[#556B2F]"
+          />
+        </div>
       </div>
 
       {isOpen && (
@@ -482,36 +482,46 @@ export default function Report() {
 
               {/* Charts — side by side */}
               <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Doughnut: problem type distribution */}
+                 {/* Doughnut: problem type distribution — legend on the left */}
                 {problemDistribution.length > 0 && (
                   <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                     <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4">Розподіл розбіжностей за типом</h4>
-                    <ResponsiveContainer width="100%" height={220}>
-                      <PieChart>
-                        <Pie
-                          data={problemDistribution}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={60}
-                          outerRadius={90}
-                          paddingAngle={3}
-                          dataKey="value"
-                        >
-                          {problemDistribution.map((_entry, index) => (
-                            <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                          ))}
-                        </Pie>
-                        <Tooltip
-                          formatter={(value: number) => [`${value} записів`, '']}
-                          contentStyle={{ borderRadius: '10px', border: '1px solid #f1f5f9', fontSize: '12px' }}
-                        />
-                        <Legend
-                          iconType="circle"
-                          iconSize={8}
-                          formatter={(value) => <span style={{ fontSize: '12px', color: '#6b7280' }}>{value}</span>}
-                        />
-                      </PieChart>
-                    </ResponsiveContainer>
+                    <div className="flex items-center gap-4">
+                      {/* Custom legend — left side */}
+                      <div className="flex flex-col gap-2 min-w-[130px] shrink-0">
+                        {problemDistribution.map((entry, index) => (
+                          <div key={entry.name} className="flex items-center gap-2">
+                            <span
+                              className="inline-block w-2.5 h-2.5 rounded-full shrink-0"
+                              style={{ background: CHART_COLORS[index % CHART_COLORS.length] }}
+                            />
+                            <span className="text-xs text-gray-500 leading-tight">{entry.name}</span>
+                          </div>
+                        ))}
+                      </div>
+                      {/* Chart — right side */}
+                      <ResponsiveContainer width="100%" height={200}>
+                        <PieChart>
+                          <Pie
+                            data={problemDistribution}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={55}
+                            outerRadius={85}
+                            paddingAngle={3}
+                            dataKey="value"
+                          >
+                            {problemDistribution.map((_entry, index) => (
+                              <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            formatter={(value: number) => [`${value} записів`, '']}
+                            contentStyle={{ borderRadius: '10px', border: '1px solid #f1f5f9', fontSize: '12px' }}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
                   </div>
                 )}
 
@@ -662,14 +672,7 @@ export default function Report() {
           )}
 
           {/* Column Headers */}
-          <div className="grid px-4 mb-4 text-xs font-bold text-gray-400 uppercase tracking-widest gap-4 items-center" style={{ gridTemplateColumns: '2rem 1fr 1fr 1fr' }}>
-            <input
-              type="checkbox"
-              checked={allPageSelected}
-              onChange={toggleSelectAll}
-              className="w-4 h-4 rounded accent-[#556B2F] cursor-pointer"
-              title="Вибрати всі на сторінці"
-            />
+          <div className="grid px-4 mb-4 text-xs font-bold text-gray-400 uppercase tracking-widest gap-4 items-center" style={{ gridTemplateColumns: '1fr 1fr 1fr 2rem' }}>
             <div>Кадастровий номер</div>
             <div>Співпадіння</div>
             <button
@@ -701,6 +704,13 @@ export default function Report() {
                 </svg>
               </span>
             </button>
+            <input
+              type="checkbox"
+              checked={allPageSelected}
+              onChange={toggleSelectAll}
+              className="w-4 h-4 rounded accent-[#556B2F] cursor-pointer justify-self-center"
+              title="Вибрати всі на сторінці"
+            />
           </div>
 
           {/* Content States */}
