@@ -41,6 +41,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         email = attrs.get('email', '')
         password = attrs.get('password', '')
 
+        # Registration stores email as username, so authenticate by username
         self.user = authenticate(
             request=self.context.get('request'),
             username=email,
@@ -67,6 +68,7 @@ class RegisterView(generics.CreateAPIView):
     serializer_class = UserRegistrationSerializer
 
 
+
 # ────────────────────────── Reports ───────────────────────────────
 
 class ReportCreateView(views.APIView):
@@ -87,13 +89,14 @@ class ReportCreateView(views.APIView):
         try:
             records_data = process_excel_files(land_file, property_file)
         except Exception as e:
-            report.delete()
+            report.delete() # Cleanup
             return Response(
                 {"error": f"Invalid Excel file content: {str(e)}"},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
         records_to_create = [
+
             Record(
                 report=report,
                 problems=data.get('problems', []),
@@ -127,8 +130,10 @@ class RecordListView(generics.ListAPIView):
         report = _check_report_ownership(report_id, self.request.user)
         queryset = Record.objects.filter(report=report)
 
+        # ── Filters ──
         problem = self.request.query_params.get('problem')
         if problem:
+            # Quote the value so "land_user" doesn't match "edrpou_of_land_user"
             queryset = queryset.filter(problems__icontains=f'"{problem}"')
 
         has_problems = self.request.query_params.get('has_problems')
@@ -162,6 +167,7 @@ class RecordListView(generics.ListAPIView):
                 _koatuu=RawSQL("JSON_EXTRACT(land_data, '$.koatuu')", []),
             ).filter(_koatuu__icontains=koatuu)
 
+        # ── Sorting ──
         sort_by = self.request.query_params.get('sort_by')
         order = self.request.query_params.get('order', 'asc')
         if sort_by:
@@ -192,88 +198,67 @@ class RecordDetailView(generics.RetrieveAPIView):
 
 # ────────────────────────── PDF helpers ───────────────────────────
 
-PROBLEM_LABELS_UA = {
-    'edrpou_of_land_user':                     'ЄДРПОУ / ІПН',
-    'land_user':                                'Землекористувач / Платник',
-    'location':                                 'Місцезнаходження / Адреса',
-    'area':                                     'Площа',
-    'date_of_state_registration_of_ownership':  'Дата реєстрації права',
-    'share_of_ownership':                       'Частка власності',
-    'purpose':                                  'Цільове призначення / Тип об\'єкта',
+PROBLEM_LABELS_EN = {
+    'edrpou_of_land_user':                     'Organization ID (EDRPOU)',
+    'land_user':                                'Land User / Owner',
+    'location':                                 'Location / Address',
+    'area':                                     'Area (sq.m)',
+    'date_of_state_registration_of_ownership':  'Registration Date',
+    'share_of_ownership':                       'Ownership Share',
+    'purpose':                                  'Usage Purpose',
 }
 
 
 def _build_pdf_context(report, records_qs):
     """
     Aggregate stats and build the full template context for the PDF.
-    Implements "forgiving" business rules like the frontend.
+    All per-record booleans are pre-computed here so the template
+    needs zero custom template tags.
     """
     records = list(records_qs)
     total_records = len(records)
-    
-    processed_records = []
-    total_with_problems = 0
-    freq: dict = {}
-
-    for rec in records:
-        problems = rec.problems or []
-        
-        # ── Apply "Forgiving" Business Rules (matching frontend) ──
-        # Rule 1: share_of_ownership is never an error
-        problems = [p for p in problems if p != 'share_of_ownership']
-
-        # Rule 2: Area — land > property total area is acceptable
-        land_area = rec.land_data.get('area') if rec.land_data else 0
-        prop_area = rec.property_data.get('total_area') if rec.property_data else 0
-        try:
-            if float(land_area or 0) >= float(prop_area or 0):
-                problems = [p for p in problems if p != 'area']
-        except (ValueError, TypeError):
-            pass
-
-        # Rule 3: Date — if either date is missing we treat it as acceptable
-        land_date = rec.land_data.get('date_of_state_registration_of_ownership')
-        prop_date = rec.property_data.get('date_of_state_registration_of_ownership')
-        if not land_date or not prop_date:
-            problems = [p for p in problems if p != 'date_of_state_registration_of_ownership']
-
-        # Update frequency and count
-        if problems:
-            total_with_problems += 1
-            for p in problems:
-                freq[p] = freq.get(p, 0) + 1
-        
-        processed_records.append({
-            'record': rec,
-            'filtered_problems': problems,
-            'problem_count': len(problems),
-            'problem_labels_list': [PROBLEM_LABELS_UA.get(p, p) for p in problems],
-            'has_land_user':  'land_user' in problems,
-            'has_edrpou':     'edrpou_of_land_user' in problems,
-            'has_location':   'location' in problems,
-            'has_area':       'area' in problems,
-            'has_purpose':    'purpose' in problems,
-            'has_date':       'date_of_state_registration_of_ownership' in problems,
-        })
-
+    total_with_problems = sum(1 for r in records if r.problems)
     total_clean = total_records - total_with_problems
     problem_rate = round(total_with_problems / total_records * 100, 1) if total_records else 0
 
     # ── Problem frequency table ──────────────────────────────────
+    freq: dict = {}
+    for rec in records:
+        for p in (rec.problems or []):
+            freq[p] = freq.get(p, 0) + 1
+
     max_count = max(freq.values(), default=1)
     problem_counts = []
     for key, count in sorted(freq.items(), key=lambda x: x[1], reverse=True):
         pct = round(count / total_records * 100, 1) if total_records else 0
         problem_counts.append({
             'key':       key,
-            'label':     PROBLEM_LABELS_UA.get(key, key),
+            'label':     PROBLEM_LABELS_EN.get(key, key),
             'count':     count,
             'pct':       pct,
             'bar_width': round(count / max_count * 100),
         })
 
-    # ── Top-10 most critical records (filtered) ──────────────────
-    top_10 = sorted(processed_records, key=lambda x: x['problem_count'], reverse=True)[:10]
+    # ── Top-10 most critical records ─────────────────────────────
+    top_10_records = sorted(records, key=lambda r: len(r.problems or []), reverse=True)[:10]
+
+    top_10 = []
+    for rec in top_10_records:
+        problems = rec.problems or []
+        top_10.append({
+            'record':            rec,
+            'problem_count':     len(problems),
+            # Human-readable labels for the pills row
+            'problem_labels_list': [PROBLEM_LABELS_EN.get(p, p) for p in problems],
+            # Pre-computed booleans — one per comparison row in the template
+            'has_land_user':  'land_user' in problems,
+            'has_edrpou':     'edrpou_of_land_user' in problems,
+            'has_location':   'location' in problems,
+            'has_area':       'area' in problems,
+            'has_purpose':    'purpose' in problems,
+            'has_date':       'date_of_state_registration_of_ownership' in problems,
+            'has_share':      'share_of_ownership' in problems,
+        })
 
     return {
         'report':              report,
@@ -284,7 +269,7 @@ def _build_pdf_context(report, records_qs):
         'problem_counts':      problem_counts,
         'top_10':              top_10,
         'date':                timezone.now(),
-        'font_path':           FONT_PATH.replace('\\', '/'),
+        'font_path':           FONT_PATH,
     }
 
 
@@ -316,84 +301,144 @@ def _render_pdf(template_path: str, context: dict):
 # ────────────────────────── Export ────────────────────────────────
 
 class ReportExportView(views.APIView):
-    """POST /api/reports/export/  — bulk export (uses first report_id)."""
     permission_classes = (IsAuthenticated,)
 
     def get(self, request, *args, **kwargs):
+        # Simply call the post logic for GET requests too
         return self.post(request, *args, **kwargs)
 
     def post(self, request, *args, **kwargs):
         report_id = self.kwargs.get('report_id')
         record_ids = request.data.get('record_ids', [])
-
+        
+        # If no report_id in URL, check if it's a bulk export from body
         if not report_id:
             report_ids = request.data.get('report_ids', [])
             if not report_ids:
                 return Response({"error": "No report_id or report_ids provided."}, status=400)
-            report_id = report_ids[0]
+            report_id = report_ids[0] # Just take first for current version
 
-        report = get_object_or_404(Report, id=report_id)
+        report = generics.get_object_or_404(Report, id=report_id)
+        
+        # Permission check
         if report.user and report.user != request.user:
             return Response({"error": "Forbidden"}, status=403)
 
-        records_qs = (
-            Record.objects.filter(report=report, id__in=record_ids)
-            if record_ids
-            else Record.objects.filter(report=report)
-        )
+        if record_ids:
+            records = Record.objects.filter(report=report, id__in=record_ids)
+        else:
+            # Export all records for this report (limit to 500 for safety)
+            records = Record.objects.filter(report=report)[:500]
 
-        context = _build_pdf_context(report, records_qs)
-        pdf_bytes, err = _render_pdf('report_template.html', context)
+        generator = PDFGenerator()
+        try:
+            pdf_content = generator.generate_report_pdf(report, records)
+        except Exception as e:
+            return Response({"error": f"PDF Generation failed: {str(e)}"}, status=500)
 
-        if err:
-            return Response({"error": "PDF generation failed."}, status=500)
-
-        response = HttpResponse(pdf_bytes, content_type='application/pdf')
-        response['Content-Disposition'] = f'attachment; filename="audit_report_{str(report.id)[:8]}.pdf"'
+        response = HttpResponse(pdf_content, content_type='application/pdf')
+        filename = f"report_{str(report.id)[:8]}.pdf"
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
         return response
 
 
 class ReportPDFExportView(views.APIView):
     """
-    GET  /api/reports/{report_id}/export/          — export all records
-    POST /api/reports/{report_id}/export/          — export selected records
-         body: { "record_ids": ["uuid", ...] }
+    Analytical PDF Report generation using xhtml2pdf.
+    GET /api/reports/{report_id}/export/
     """
     permission_classes = (IsAuthenticated,)
 
     def get(self, request, report_id, *args, **kwargs):
-        return self._export(request, report_id, record_ids=None)
-
-    def post(self, request, report_id, *args, **kwargs):
-        return self._export(request, report_id, record_ids=request.data.get('record_ids'))
-
-    def _export(self, request, report_id, record_ids):
+        # 1. Fetch data
         report = get_object_or_404(Report, id=report_id)
-
+        
+        # Permission check
         if report.user and report.user != request.user:
             return Response({"error": "Forbidden: You do not own this report."}, status=403)
 
-        records_qs = (
-            Record.objects.filter(report=report, id__in=record_ids)
-            if record_ids
-            else report.records.all()
+        records = report.records.all()
+        total_records = records.count()
+        total_with_problems = records.exclude(problems=[]).count()
+
+        # 2. Statistics (Aggregation)
+        problem_counts = {}
+        for record in records:
+            for p in record.problems:
+                problem_counts[p] = problem_counts.get(p, 0) + 1
+        
+        # Sort problem_counts by frequency descending
+        sorted_problems = sorted(problem_counts.items(), key=lambda x: x[1], reverse=True)
+
+        # 3. Top 10 Critical
+        # Identify top 10 most critical records (by number of problems)
+        top_10 = sorted(records, key=lambda r: len(r.problems), reverse=True)[:10]
+
+        # Ensure font is available for Cyrillic
+        try:
+            register_fonts()
+        except:
+            pass
+
+        # 4. Render Context
+        context = {
+            'report': report,
+            'total_records': total_records,
+            'total_with_problems': total_with_problems,
+            'problem_counts': sorted_problems,
+            'top_10': top_10,
+            'date': timezone.now(),
+            'font_path': FONT_PATH, # Passed to @font-face in CSS
+        }
+
+        # 5. Generate PDF
+        template_path = 'report_template.html'
+        template = get_template(template_path)
+        html = template.render(context)
+        
+        result = io.BytesIO()
+
+        def link_callback(uri, rel):
+            """
+            Convert HTML URIs to absolute system paths so xhtml2pdf can access those
+            resources on disk.
+            """
+            import os
+            from django.conf import settings
+            
+            # If it's the font path we passed in context
+            if uri == FONT_PATH:
+                return FONT_PATH
+                
+            # Fallback for static/media if needed
+            return uri
+
+        pdf = pisa.pisaDocument(
+            io.BytesIO(html.encode("UTF-8")), 
+            result, 
+            encoding='UTF-8',
+            link_callback=link_callback
         )
-
-        context = _build_pdf_context(report, records_qs)
-        pdf_bytes, err = _render_pdf('report_template.html', context)
-
-        if err:
-            return Response({"error": "PDF generation failed."}, status=500)
-
-        response = HttpResponse(pdf_bytes, content_type='application/pdf')
-        response['Content-Disposition'] = f'attachment; filename="analytical_report_{str(report.id)[:8]}.pdf"'
-        return response
+        
+        if not pdf.err:
+            response = HttpResponse(result.getvalue(), content_type='application/pdf')
+            filename = f"analytical_report_{str(report.id)[:8]}.pdf"
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            return response
+        
+        return Response({"error": "Failed to generate PDF report."}, status=500)
 
 
 # ────────────────────────── AI Analysis ───────────────────────────
 
 class AIAnalysisView(views.APIView):
-    """POST /api/reports/ai-analysis"""
+    """
+    POST /api/reports/ai-analysis
+
+    Accepts a report_id, a list of record_ids, and a natural-language question.
+    Fetches the requested records, sends them as context to GPT-4.1 Mini,
+    and returns the AI-generated answer.
+    """
     permission_classes = (IsAuthenticated,)
 
     def post(self, request, *args, **kwargs):
@@ -401,42 +446,73 @@ class AIAnalysisView(views.APIView):
         record_ids = request.data.get('record_ids', [])
         question = request.data.get('question', '')
 
+        # ── Validation ──
         if not report_id:
-            return Response({"error": "report_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "report_id is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         if not question:
-            return Response({"error": "question is required."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "question is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
+        # ── Fetch ALL records from the report ──
         report = _check_report_ownership(report_id, request.user)
         records = Record.objects.filter(report=report)
 
         if not records.exists():
-            return Response({"error": "No records found for the given report."}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"error": "No records found for the given report."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
 
-        requested_fields = record_ids
+        # ── Build context for the AI ──
+        # record_ids contains FIELD NAMES (e.g. ["area", "total_area", "location"])
+        # Extract only those fields from each record's land_data and property_data
+        requested_fields = record_ids  # e.g. ["area", "total_area"]
 
         records_context = []
         for rec in records:
             entry = {"record_id": str(rec.id)}
+
             if requested_fields:
-                filtered_land = {k: v for k, v in (rec.land_data or {}).items() if k in requested_fields}
-                filtered_property = {k: v for k, v in (rec.property_data or {}).items() if k in requested_fields}
+                # Extract only the requested fields from land_data and property_data
+                filtered_land = {
+                    k: v for k, v in (rec.land_data or {}).items()
+                    if k in requested_fields
+                }
+                filtered_property = {
+                    k: v for k, v in (rec.property_data or {}).items()
+                    if k in requested_fields
+                }
                 if filtered_land:
                     entry["land_data"] = filtered_land
                 if filtered_property:
                     entry["property_data"] = filtered_property
+                # Always include problems if "problems" is requested
                 if "problems" in requested_fields:
                     entry["problems"] = rec.problems
             else:
+                # No specific fields requested — send everything
                 entry["problems"] = rec.problems
                 entry["land_data"] = rec.land_data
                 entry["property_data"] = rec.property_data
+
             records_context.append(entry)
 
         import json as _json
+
+        # Hard cap: 100 records max → ~100k chars → well under 400k token limit
+        MAX_RECORDS = 100
+        total_in_report = records.count()
+        records_context = records_context[:MAX_RECORDS]
+
         context_str = _json.dumps(records_context, ensure_ascii=False, default=str)
 
         user_message = (
-            f"Here are the records from the report:\n\n"
+            f"Records shown: {len(records_context)} of {total_in_report} total.\n\n"
             f"{context_str}\n\n"
             f"Question: {question}"
         )
@@ -448,16 +524,23 @@ class AIAnalysisView(views.APIView):
 
         if not api_key:
             return Response(
-                {"error": "OpenAI API key is not configured."},
+                {"error": "OpenAI API key is not configured. Set the OPENAI_API_KEY environment variable."},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
 
         try:
             from openai import OpenAI
             client = OpenAI(api_key=api_key)
-            ai_response = client.responses.create(model=model, input=user_message)
-            answer = ai_response.output_text
+            response = client.responses.create(
+                model=model,
+                input=user_message,
+            )
+            answer = response.output_text
         except Exception as e:
-            return Response({"error": f"AI analysis failed: {str(e)}"}, status=status.HTTP_502_BAD_GATEWAY)
+            return Response(
+                {"error": f"AI analysis failed: {str(e)}"},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
 
         return Response({"answer": answer}, status=status.HTTP_200_OK)
+
