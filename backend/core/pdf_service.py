@@ -9,21 +9,29 @@ from reportlab.pdfbase.ttfonts import TTFont
 import urllib.request
 
 # Global font registration
-FONT_PATH = "/tmp/DejaVuSans.ttf"
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+FONT_DIR = os.path.join(BASE_DIR, 'core', 'fonts')
+FONT_PATH = os.path.join(FONT_DIR, 'DejaVuSans.ttf')
 FONT_URL = "https://github.com/mushfiq/reportlab-fonts/raw/master/DejaVuSans.ttf"
 
 def register_fonts():
     """Register a font that supports Ukrainian characters."""
     try:
-        # Try to download if doesn't exist
-        if not os.path.exists(FONT_PATH):
+        if not os.path.exists(FONT_DIR):
+            os.makedirs(FONT_DIR, exist_ok=True)
+            
+        if not os.path.exists(FONT_PATH) or os.path.getsize(FONT_PATH) < 1000:
+            import urllib.request
+            print(f"Downloading font to {FONT_PATH}...")
             urllib.request.urlretrieve(FONT_URL, FONT_PATH)
         
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.ttfonts import TTFont
         pdfmetrics.registerFont(TTFont('DejaVuSans', FONT_PATH))
         return 'DejaVuSans'
     except Exception as e:
         print(f"Font registration failed: {e}")
-        return 'Helvetica' # Fallback (no Cyrillic support)
+        return 'Helvetica'
 
 class PDFGenerator:
     def __init__(self):

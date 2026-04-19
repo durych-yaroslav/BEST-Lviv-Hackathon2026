@@ -6,6 +6,7 @@ from .views import (
     RecordListView,
     RecordDetailView, 
     ReportExportView,
+    ReportPDFExportView,
     AIAnalysisView,
 )
 
@@ -23,7 +24,7 @@ urlpatterns = [
 
     # Export endpoints
     path('reports/export/', ReportExportView.as_view(), name='export_post'),
-    path('reports/<uuid:report_id>/export/', ReportExportView.as_view(), name='export_pdf_get'),
+    path('reports/<uuid:report_id>/export/', ReportPDFExportView.as_view(), name='export_pdf_get'),
 
     # AI Analysis
     path('reports/ai-analysis/', AIAnalysisView.as_view(), name='ai_analysis'),

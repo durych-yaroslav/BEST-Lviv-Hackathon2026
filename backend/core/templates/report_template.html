@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        @page {
+            size: A4;
+            margin: 1.5cm;
+        }
+
+        @font-face {
+            font-family: 'DejaVuSans';
+            src: url('{{ font_path }}');
+        }
+
+        body {
+            font-family: 'DejaVuSans', sans-serif;
+            font-size: 10pt;
+            color: #333;
+            line-height: 1.2;
+        }
+
+        .header {
+            text-align: center;
+            border-bottom: 1px solid #2563eb;
+            padding-bottom: 5px;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            color: #1e40af;
+            font-size: 16pt;
+            margin: 0;
+        }
+
+        .report-meta {
+            font-size: 8pt;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .section-title {
+            background-color: #f3f4f6;
+            padding: 5px;
+            border-left: 3px solid #2563eb;
+            font-weight: bold;
+            font-size: 11pt;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            color: #1e3a8a;
+        }
+
+        .stats-box {
+            background-color: #eff6ff;
+            border: 1px solid #bfdbfe;
+            padding: 10px;
+            width: 100%;
+        }
+
+        .stats-table {
+            width: 100%;
+        }
+
+        .stats-table td {
+            padding: 3px;
+        }
+
+        .label {
+            font-weight: bold;
+            color: #4b5563;
+        }
+
+        .value {
+            font-weight: bold;
+            color: #1e40af;
+            text-align: right;
+        }
+
+        .problem-item {
+            border-bottom: 1px solid #cbd5e1;
+            padding: 3px 0;
+        }
+
+        .record-card {
+            margin-bottom: 25px;
+            border: 1px solid #e5e7eb;
+            padding: 10px;
+        }
+
+        .record-header {
+            font-weight: bold;
+            background-color: #f8fafc;
+            padding: 5px;
+            font-size: 10pt;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 8pt;
+            margin-top: 5px;
+        }
+
+        .comparison-table th, .comparison-table td {
+            border: 1px solid #cbd5e1;
+            padding: 5px;
+            text-align: left;
+        }
+
+        .field-name {
+            background-color: #f8fafc;
+            width: 30%;
+            font-weight: bold;
+            color: #64748b;
+        }
+
+        .highlight-error {
+            background-color: #ffcccc; 
+        }
+
+        .footer {
+            margin-top: 30px;
+            font-size: 7pt;
+            color: #94a3b8;
+            text-align: center;
+            border-top: 1px solid #e2e8f0;
+            padding-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Analytical Report: Registry Discrepancies</h1>
+        <div class="report-meta">
+            Report ID: {{ report.id }} | Generated: {{ date|date:"d.m.Y H:i" }}
+        </div>
+    </div>
+
+    <div class="section-title">General Statistics</div>
+    <div class="stats-box">
+        <table class="stats-table">
+            <tr>
+                <td class="label">Total records:</td>
+                <td class="value">{{ total_records }}</td>
+            </tr>
+            <tr>
+                <td class="label">Records with discrepancies:</td>
+                <td class="value">{{ total_with_problems }}</td>
+            </tr>
+        </table>
+        
+        <p style="font-weight: bold; color: #1e3a8a; margin-top: 10px; margin-bottom: 5px;">Problem Frequency:</p>
+        {% for problem, count in problem_counts %}
+        <div class="problem-item">
+            <span style="color: #4b5563;">{{ problem }}</span>
+            <span style="float: right; font-weight: bold; color: #dc2626;">{{ count }}</span>
+        </div>
+        {% empty %}
+        <div style="color: #666; font-style: italic;">No specific issues found</div>
+        {% endfor %}
+    </div>
+
+    <div class="section-title">TOP-10 Critical Discrepancies</div>
+    
+    {% for record in top_10 %}
+    <div class="record-card">
+        <div class="record-header">
+            Record #{{ forloop.counter }} | 
+            {% if record.land_data.cadastral_number %}
+                CN: {{ record.land_data.cadastral_number }}
+            {% elif record.property_data.tax_number_of_pp %}
+                TIN: {{ record.property_data.tax_number_of_pp }}
+            {% else %}
+                ID: {{ record.id|stringformat:".8s" }}
+            {% endif %}
+            <span style="float: right; color: #dc2626;">Problem count: {{ record.problems|length }}</span>
+        </div>
+
+        <table class="comparison-table">
+            <thead>
+                <tr>
+                    <th class="field-name">Field</th>
+                    <th>Land Registry Data</th>
+                    <th>Property Registry Data</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr class="{% if 'cadastral_number' in record.problems %}highlight-error{% endif %}">
+                    <td class="field-name">Cadastral Number</td>
+                    <td>{{ record.land_data.cadastral_number|default:"-" }}</td>
+                    <td>-</td>
+                </tr>
+                <tr class="{% if 'location' in record.problems or 'address_of_the_object' in record.problems %}highlight-error{% endif %}">
+                    <td class="field-name">Address / Location</td>
+                    <td>{{ record.land_data.location|default:"-" }}</td>
+                    <td>{{ record.property_data.address_of_the_object|default:"-" }}</td>
+                </tr>
+                <tr class="{% if 'area' in record.problems %}highlight-error{% endif %}">
+                    <td class="field-name">Area</td>
+                    <td>{{ record.land_data.area|default:"-" }}</td>
+                    <td>{{ record.property_data.area|default:"-" }}</td>
+                </tr>
+                <tr class="{% if 'purpose' in record.problems %}highlight-error{% endif %}">
+                    <td class="field-name">Purpose</td>
+                    <td>{{ record.land_data.purpose|default:"-" }}</td>
+                    <td>-</td>
+                </tr>
+                <tr class="{% if 'tax_number_of_pp' in record.problems or 'edrpou_of_land_user' in record.problems %}highlight-error{% endif %}">
+                    <td class="field-name">TIN / EDRPOU</td>
+                    <td>{{ record.land_data.edrpou_of_land_user|default:"-" }}</td>
+                    <td>{{ record.property_data.tax_number_of_pp|default:"-" }}</td>
+                </tr>
+                <tr class="{% if 'land_user' in record.problems or 'name_of_pp' in record.problems %}highlight-error{% endif %}">
+                    <td class="field-name">Owner / User</td>
+                    <td>{{ record.land_data.land_user|default:"-" }}</td>
+                    <td>{{ record.property_data.name_of_pp|default:"-" }}</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    {% endfor %}
+
+    <div class="footer">
+        Automatically generated by Registry Audit System. &copy; 2026
+    </div>
+</body>
+</html>
