@@ -12,6 +12,7 @@ from django.db.models.expressions import RawSQL
 from .models import Report, Record
 from .serializers import UserRegistrationSerializer, RecordSerializer
 from .services import process_excel_files
+from .pdf_service import PDFGenerator
 from .pagination import StandardResultsSetPagination
 
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
@@ -191,16 +192,153 @@ class RecordDetailView(generics.RetrieveAPIView):
 
 # ────────────────────────── Export ────────────────────────────────
 
-class ExportStubView(views.APIView):
+class ReportExportView(views.APIView):
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request, *args, **kwargs):
+        # Simply call the post logic for GET requests too
+        return self.post(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        report_id = self.kwargs.get('report_id')
+        record_ids = request.data.get('record_ids', [])
+        
+        # If no report_id in URL, check if it's a bulk export from body
+        if not report_id:
+            report_ids = request.data.get('report_ids', [])
+            if not report_ids:
+                return Response({"error": "No report_id or report_ids provided."}, status=400)
+            report_id = report_ids[0] # Just take first for current version
+
+        report = generics.get_object_or_404(Report, id=report_id)
+        
+        # Permission check
+        if report.user and report.user != request.user:
+            return Response({"error": "Forbidden"}, status=403)
+
+        if record_ids:
+            records = Record.objects.filter(report=report, id__in=record_ids)
+        else:
+            # Export all records for this report (limit to 500 for safety)
+            records = Record.objects.filter(report=report)[:500]
+
+        generator = PDFGenerator()
+        try:
+            pdf_content = generator.generate_report_pdf(report, records)
+        except Exception as e:
+            return Response({"error": f"PDF Generation failed: {str(e)}"}, status=500)
+
+        response = HttpResponse(pdf_content, content_type='application/pdf')
+        filename = f"report_{str(report.id)[:8]}.pdf"
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+
+
+# ────────────────────────── AI Analysis ───────────────────────────
+
+class AIAnalysisView(views.APIView):
+    """
+    POST /api/reports/ai-analysis
+
+    Accepts a report_id, a list of record_ids, and a natural-language question.
+    Fetches the requested records, sends them as context to GPT-4.1 Mini,
+    and returns the AI-generated answer.
+    """
     permission_classes = (IsAuthenticated,)
 
     def post(self, request, *args, **kwargs):
-        report_ids = request.data.get('report_ids', [])
+        report_id = request.data.get('report_id')
         record_ids = request.data.get('record_ids', [])
+        question = request.data.get('question', '')
 
-        response = HttpResponse(
-            b"%PDF-1.4\n%Stub PDF Export\n",
-            content_type='application/pdf',
+        # ── Validation ──
+        if not report_id:
+            return Response(
+                {"error": "report_id is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not question:
+            return Response(
+                {"error": "question is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # ── Fetch records ──
+        report = _check_report_ownership(report_id, request.user)
+        if record_ids:
+            records = Record.objects.filter(report=report, id__in=record_ids)
+        else:
+            # If no specific record_ids given, use all records from the report
+            records = Record.objects.filter(report=report)
+
+        if not records.exists():
+            return Response(
+                {"error": "No records found for the given report and record IDs."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # ── Build context for the AI ──
+        records_context = []
+        for rec in records:
+            records_context.append({
+                "record_id": str(rec.id),
+                "problems": rec.problems,
+                "land_data": rec.land_data,
+                "property_data": rec.property_data,
+            })
+
+        import json as _json
+        context_str = _json.dumps(records_context, ensure_ascii=False, default=str)
+
+        system_prompt = (
+            "You are an expert municipal data analyst for Ukrainian territorial communities (OTG). "
+            "You analyze land registry and property registry data to find discrepancies, "
+            "calculate statistics, and answer questions about assets.\n\n"
+            "You will be given a set of records, each containing:\n"
+            "- land_data: land registry information (cadastral number, area in m², location, land user, EDRPOU, etc.)\n"
+            "- property_data: property registry information (taxpayer, object type, address, total area in m², etc.)\n"
+            "- problems: a list of detected discrepancies between land_data and property_data\n\n"
+            "Answer the user's question based on this data. Be precise with numbers. "
+            "If the question is in Ukrainian, answer in Ukrainian. "
+            "If in English, answer in English. "
+            "Keep answers concise but informative."
         )
-        response['Content-Disposition'] = 'attachment; filename="export.pdf"'
-        return response
+
+        user_message = (
+            f"Here are the records from the report:\n\n"
+            f"{context_str}\n\n"
+            f"Question: {question}"
+        )
+
+        # ── Call OpenAI ──
+        from django.conf import settings as django_settings
+        api_key = django_settings.OPENAI_API_KEY
+        model = django_settings.OPENAI_MODEL
+
+        if not api_key:
+            return Response(
+                {"error": "OpenAI API key is not configured. Set the OPENAI_API_KEY environment variable."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        try:
+            from openai import OpenAI
+            client = OpenAI(api_key=api_key)
+            completion = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_message},
+                ],
+                temperature=0.3,
+                max_tokens=2048,
+            )
+            answer = completion.choices[0].message.content
+        except Exception as e:
+            return Response(
+                {"error": f"AI analysis failed: {str(e)}"},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        return Response({"answer": answer}, status=status.HTTP_200_OK)
+

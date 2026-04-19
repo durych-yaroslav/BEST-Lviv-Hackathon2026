@@ -67,7 +67,7 @@ interface ComparisonField {
 function buildComparisonFields(record: Record): ComparisonField[] {
   const { land_data: l, property_data: p } = record;
   return [
-    { label: 'Площа (га)', landValue: l.area, propValue: p.total_area, problemKey: 'area' },
+    { label: 'Площа', landValue: l.area, propValue: p.total_area, problemKey: 'area' },
     { label: 'Цільове призначення', landValue: l.purpose, propValue: p.type_of_object, problemKey: 'purpose' },
     { label: 'Форма власності / Тип', landValue: l.form_of_ownership, propValue: p.type_of_joint_ownership, problemKey: '' },
     { label: 'Землекористувач / Платник', landValue: l.land_user, propValue: p.name_of_the_taxpayer, problemKey: 'land_user' },
@@ -80,7 +80,14 @@ function buildComparisonFields(record: Record): ComparisonField[] {
 
 // ─── Single record row (accordion) ───────────────────────────────────────────
 
-const RecordRow: React.FC<{ record: Record; defaultOpen?: boolean }> = ({ record, defaultOpen = false }) => {
+interface RecordRowProps {
+  record: Record;
+  defaultOpen?: boolean;
+  isSelected: boolean;
+  onToggleSelect: (id: string) => void;
+}
+
+const RecordRow: React.FC<RecordRowProps> = ({ record, defaultOpen = false, isSelected, onToggleSelect }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const mismatchCount = record.problems.length;
   const matchCount = buildComparisonFields(record).length - mismatchCount;
@@ -88,21 +95,34 @@ const RecordRow: React.FC<{ record: Record; defaultOpen?: boolean }> = ({ record
   const compFields = buildComparisonFields(record);
 
   return (
-    <div className="border border-gray-100 rounded-xl bg-white mb-4 overflow-hidden shadow-sm p-2">
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full grid grid-cols-3 p-3 gap-4 hover:bg-gray-50 transition-colors items-center text-left focus:outline-none rounded-lg"
-      >
-        <span className="font-mono text-base font-semibold text-gray-900 truncate tracking-tight">
-          {cadastral}
-        </span>
-        <span className="text-gray-500 text-sm font-medium">
-          {matchCount} <span className="text-xs font-normal text-gray-400">полів збігається</span>
-        </span>
-        <span className={`${mismatchCount > 0 ? 'bg-red-50 text-red-600 border-red-100' : 'bg-green-50 text-green-600 border-green-100'} border px-3 py-1 rounded-full text-xs font-semibold inline-flex items-center justify-center w-fit`}>
-          {mismatchCount} <span className="ml-1 font-normal opacity-80">розбіжностей</span>
-        </span>
-      </button>
+    <div className={`border rounded-xl bg-white mb-4 overflow-hidden shadow-sm p-2 transition-colors ${isSelected ? 'border-[#556B2F]/40 bg-[#556B2F]/5' : 'border-gray-100'
+      }`}>
+      <div className="flex items-center">
+        {/* Checkbox */}
+        <div className="pl-2 pr-3 flex-shrink-0" onClick={e => e.stopPropagation()}>
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={() => onToggleSelect(record.record_id)}
+            className="w-4 h-4 rounded border-gray-300 text-[#556B2F] cursor-pointer accent-[#556B2F]"
+          />
+        </div>
+        {/* Row content */}
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          className="flex-1 grid grid-cols-3 p-3 gap-4 hover:bg-gray-50 transition-colors items-center text-left focus:outline-none rounded-lg"
+        >
+          <span className="font-mono text-base font-semibold text-gray-900 truncate tracking-tight">
+            {cadastral}
+          </span>
+          <span className="text-gray-500 text-sm font-medium">
+            {matchCount} <span className="text-xs font-normal text-gray-400">полів збігається</span>
+          </span>
+          <span className={`${mismatchCount > 0 ? 'bg-red-50 text-red-600 border-red-100' : 'bg-green-50 text-green-600 border-green-100'} border px-3 py-1 rounded-full text-xs font-semibold inline-flex items-center justify-center w-fit`}>
+            {mismatchCount} <span className="ml-1 font-normal opacity-80">розбіжностей</span>
+          </span>
+        </button>
+      </div>
 
       {isOpen && (
         <div className="p-6 border-t border-gray-50 bg-white">
@@ -165,9 +185,11 @@ export default function Report() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterProblems, setFilterProblems] = useState(false);
+  const [filterProblem, setFilterProblem] = useState('');
   const [exportLoading, setExportLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [chatOpen, setChatOpen] = useState(false);
   const PAGE_SIZE = 100;
 
   // ── Fetch records on mount ────────────────────────────────────────────────
@@ -231,35 +253,41 @@ export default function Report() {
   const filteredRecords = useMemo(() => {
     let result = records;
 
-    if (filterProblems) {
-      result = result.filter(r => r.problems.length > 0);
+    if (filterProblem) {
+      result = result.filter(r => r.problems && r.problems.includes(filterProblem));
     }
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       result = result.filter(r => {
-        const cadastral = (r.land_data.cadastral_number || '').toLowerCase();
-        const landUser = (r.land_data.land_user || '').toLowerCase();
-        const location = (r.land_data.location || '').toLowerCase();
-        const edrpou = (r.land_data.edrpou_of_land_user || '').toLowerCase();
-        const taxpayer = (r.property_data.name_of_the_taxpayer || '').toLowerCase();
-        return (
-          cadastral.includes(q) ||
-          landUser.includes(q) ||
-          location.includes(q) ||
-          edrpou.includes(q) ||
-          taxpayer.includes(q)
-        );
+        try {
+          const cadastral = (r.land_data?.cadastral_number || '').toLowerCase();
+          const landUser = (r.land_data?.land_user || '').toLowerCase();
+          const location = (r.land_data?.location || '').toLowerCase();
+          const edrpou = (r.land_data?.edrpou_of_land_user || '').toLowerCase();
+          const taxpayer = (r.property_data?.name_of_the_taxpayer || '').toLowerCase();
+          const taxNum = (r.property_data?.tax_number_of_pp || '').toLowerCase();
+          return (
+            cadastral.includes(q) ||
+            landUser.includes(q) ||
+            location.includes(q) ||
+            edrpou.includes(q) ||
+            taxpayer.includes(q) ||
+            taxNum.includes(q)
+          );
+        } catch {
+          return false;
+        }
       });
     }
 
     return result;
-  }, [records, searchQuery, filterProblems]);
+  }, [records, searchQuery, filterProblem]);
 
   // Reset to page 1 whenever filter/search changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, filterProblems]);
+  }, [searchQuery, filterProblem]);
 
   // ── Pagination slice ──────────────────────────────────────────────────────
   const totalPages = Math.max(1, Math.ceil(filteredRecords.length / PAGE_SIZE));
@@ -268,11 +296,43 @@ export default function Report() {
     return filteredRecords.slice(start, start + PAGE_SIZE);
   }, [filteredRecords, currentPage, PAGE_SIZE]);
 
+  // ── Selection helpers ─────────────────────────────────────────────────────
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const allPageSelected = paginatedRecords.length > 0 && paginatedRecords.every(r => selectedIds.has(r.record_id));
+
+  const toggleSelectAll = () => {
+    if (allPageSelected) {
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        paginatedRecords.forEach(r => next.delete(r.record_id));
+        return next;
+      });
+    } else {
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        paginatedRecords.forEach(r => next.add(r.record_id));
+        return next;
+      });
+    }
+  };
+
   // ── Export as PDF ─────────────────────────────────────────────────────────
   const handleExport = async () => {
     if (!reportId) return;
     const token = localStorage.getItem('token');
     if (!token) { navigate('/login'); return; }
+
+    // Export only selected records, or all if none selected
+    const exportIds = selectedIds.size > 0
+      ? Array.from(selectedIds)
+      : records.map(r => r.record_id);
 
     setExportLoading(true);
     try {
@@ -282,7 +342,7 @@ export default function Report() {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ record_ids: [] }), // export all records in this report
+        body: JSON.stringify({ record_ids: exportIds }),
       });
       if (!res.ok) throw new Error('Не вдалося завантажити PDF');
       const blob = await res.blob();
@@ -328,15 +388,32 @@ export default function Report() {
                   </svg>
                 </span>
               </div>
-              <button
-                onClick={() => setFilterProblems(prev => !prev)}
-                className={`px-5 py-2.5 rounded-xl border text-sm font-medium hover:bg-gray-50 transition-colors shadow-sm inline-flex items-center gap-2 ${filterProblems ? 'bg-red-50 border-red-200 text-red-600' : 'bg-white border-gray-200 text-gray-700'}`}
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="relative">
+                <svg className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
                 </svg>
-                {filterProblems ? 'Лише з проблемами' : 'Фільтрація'}
-              </button>
+                <select
+                  value={filterProblem}
+                  onChange={e => setFilterProblem(e.target.value)}
+                  className={`pl-9 pr-8 py-2.5 rounded-xl border text-sm font-medium transition-colors shadow-sm appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-slate-200 ${
+                    filterProblem
+                      ? 'bg-red-50 border-red-200 text-red-700'
+                      : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  <option value="">Фільтрація</option>
+                  <option value="edrpou_of_land_user">ЄДРПОУ землекористувача</option>
+                  <option value="land_user">Землекористувач</option>
+                  <option value="location">Місцезнаходження</option>
+                  <option value="area">Площа</option>
+                  <option value="date_of_state_registration_of_ownership">Дата реєстрації права</option>
+                  <option value="share_of_ownership">Частка власності</option>
+                  <option value="purpose">Цільове призначення</option>
+                </select>
+                <svg className="w-4 h-4 text-gray-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
             </div>
             <div>
               <button
@@ -351,7 +428,9 @@ export default function Report() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                   </svg>
                 )}
-                Завантажити звіт
+                {selectedIds.size > 0
+                  ? `Завантажити звіт (${selectedIds.size})`
+                  : 'Завантажити звіт'}
               </button>
             </div>
           </div>
@@ -361,27 +440,34 @@ export default function Report() {
             <div className="flex gap-4 mb-6">
               <div className="bg-white rounded-xl px-5 py-3 shadow-sm border border-gray-100 flex items-center gap-3">
                 <span className="text-2xl font-bold text-slate-800">{records.length}</span>
-                <span className="text-xs text-gray-500 font-medium leading-tight">Всього<br/>записів</span>
+                <span className="text-xs text-gray-500 font-medium leading-tight">Всього<br />записів</span>
               </div>
               <div className="bg-white rounded-xl px-5 py-3 shadow-sm border border-gray-100 flex items-center gap-3">
                 <span className="text-2xl font-bold text-red-500">{totalProblems}</span>
-                <span className="text-xs text-gray-500 font-medium leading-tight">Записів з<br/>розбіжностями</span>
+                <span className="text-xs text-gray-500 font-medium leading-tight">Записів з<br />розбіжностями</span>
               </div>
               <div className="bg-white rounded-xl px-5 py-3 shadow-sm border border-gray-100 flex items-center gap-3">
                 <span className="text-2xl font-bold text-green-600">{records.length - totalProblems}</span>
-                <span className="text-xs text-gray-500 font-medium leading-tight">Без<br/>розбіжностей</span>
+                <span className="text-xs text-gray-500 font-medium leading-tight">Без<br />розбіжностей</span>
               </div>
-              {(searchQuery || filterProblems) && (
+              {(searchQuery || filterProblem) && (
                 <div className="bg-white rounded-xl px-5 py-3 shadow-sm border border-gray-100 flex items-center gap-3">
                   <span className="text-2xl font-bold text-slate-600">{filteredRecords.length}</span>
-                  <span className="text-xs text-gray-500 font-medium leading-tight">Результатів<br/>фільтру</span>
+                  <span className="text-xs text-gray-500 font-medium leading-tight">Результатів<br />фільтру</span>
                 </div>
               )}
             </div>
           )}
 
           {/* Column Headers */}
-          <div className="grid grid-cols-3 px-4 mb-4 text-xs font-bold text-gray-400 uppercase tracking-widest gap-4">
+          <div className="grid px-4 mb-4 text-xs font-bold text-gray-400 uppercase tracking-widest gap-4 items-center" style={{ gridTemplateColumns: '2rem 1fr 1fr 1fr' }}>
+            <input
+              type="checkbox"
+              checked={allPageSelected}
+              onChange={toggleSelectAll}
+              className="w-4 h-4 rounded accent-[#556B2F] cursor-pointer"
+              title="Вибрати всі на сторінці"
+            />
             <div>Кадастровий номер</div>
             <div>Співпадіння</div>
             <div>Розбіжності</div>
@@ -439,6 +525,8 @@ export default function Report() {
                   key={record.record_id}
                   record={record}
                   defaultOpen={idx === 0 && currentPage === 1 && record.problems.length > 0}
+                  isSelected={selectedIds.has(record.record_id)}
+                  onToggleSelect={toggleSelect}
                 />
               ))}
 
@@ -480,11 +568,10 @@ export default function Report() {
                           <button
                             key={item}
                             onClick={() => setCurrentPage(item as number)}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-                              currentPage === item
-                                ? 'bg-slate-800 text-white border-slate-800'
-                                : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-                            }`}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${currentPage === item
+                              ? 'bg-slate-800 text-white border-slate-800'
+                              : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                              }`}
                           >
                             {item}
                           </button>
@@ -515,13 +602,28 @@ export default function Report() {
         </div>
 
         {/* Right Side: AI Chat (25%) */}
-        <div className="w-1/4 min-w-[320px] border-l border-gray-100 bg-white flex flex-col h-full shadow-sm z-10 transition-all">
+        {/* On desktop: always visible. On mobile: slides in as an overlay when chatOpen */}
+        <div className={`
+          flex flex-col h-full bg-white border-l border-gray-100 shadow-sm z-20 transition-all duration-300
+          fixed right-0 top-0 bottom-0 w-[85vw] max-w-[360px]
+          md:static md:w-1/4 md:min-w-[300px] md:max-w-none md:translate-x-0
+          ${chatOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}
+        `}>
           {/* Chat Header */}
-          <div className="p-5 border-b border-gray-50 bg-white/80 backdrop-blur-sm flex items-center justify-center">
+          <div className="p-5 border-b border-gray-50 bg-white/80 backdrop-blur-sm flex items-center justify-between">
             <h3 className="font-bold text-slate-800 flex items-center gap-2.5 text-sm tracking-tight">
               <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
               AI Помічник
             </h3>
+            {/* Close button — visible on mobile only */}
+            <button
+              onClick={() => setChatOpen(false)}
+              className="md:hidden p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
 
           {/* Chat Messages Area */}
@@ -547,6 +649,26 @@ export default function Report() {
             </div>
           </div>
         </div>
+
+        {/* Mobile: backdrop overlay when chat is open */}
+        {chatOpen && (
+          <div
+            className="fixed inset-0 bg-black/30 z-10 md:hidden"
+            onClick={() => setChatOpen(false)}
+          />
+        )}
+
+        {/* Mobile: floating button to open AI chat */}
+        <button
+          onClick={() => setChatOpen(true)}
+          className={`md:hidden fixed bottom-6 right-6 z-30 bg-slate-800 text-white rounded-full p-4 shadow-xl hover:bg-slate-700 transition-all active:scale-95 ${chatOpen ? 'hidden' : 'flex'
+            } items-center justify-center`}
+          title="AI Помічник"
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+          </svg>
+        </button>
       </main>
     </div>
   );
