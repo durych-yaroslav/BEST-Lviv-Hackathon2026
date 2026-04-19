@@ -106,6 +106,36 @@ function getFilteredProblems(record: Record): string[] {
   return problems;
 }
 
+// ─── Custom Checkbox ──────────────────────────────────────────────────────────
+
+const Checkbox: React.FC<{
+  checked: boolean;
+  onChange: () => void;
+  title?: string;
+}> = ({ checked, onChange, title }) => (
+  <label
+    className="flex items-center cursor-pointer shrink-0"
+    title={title}
+    onClick={e => e.stopPropagation()}
+  >
+    <input type="checkbox" checked={checked} onChange={onChange} className="sr-only" />
+    <span
+      className={`
+        w-4 h-4 rounded-[3px] border-2 border-gray-900
+        flex items-center justify-center transition-colors
+        ${checked ? 'bg-gray-900' : 'bg-white hover:bg-gray-100'}
+      `}
+    >
+      <svg
+        className={`w-2.5 h-2.5 text-white transition-opacity ${checked ? 'opacity-100' : 'opacity-0'}`}
+        viewBox="0 0 10 8" fill="none" stroke="currentColor"
+      >
+        <polyline points="1,4 3.5,6.5 9,1" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </span>
+  </label>
+);
+
 // ─── Single record row (accordion) ───────────────────────────────────────────
 
 interface RecordRowProps {
@@ -145,12 +175,10 @@ const RecordRow: React.FC<RecordRowProps> = ({ record, defaultOpen = false, isSe
           </span>
         </button>
         {/* Checkbox — right side */}
-        <div className="pl-3 pr-2 flex-shrink-0" onClick={e => e.stopPropagation()}>
-          <input
-            type="checkbox"
+        <div className="pl-3 pr-2 flex-shrink-0">
+          <Checkbox
             checked={isSelected}
             onChange={() => onToggleSelect(record.record_id)}
-            className="w-4 h-4 rounded border-gray-300 text-[#556B2F] cursor-pointer accent-[#556B2F]"
           />
         </div>
       </div>
@@ -672,45 +700,49 @@ export default function Report() {
           )}
 
           {/* Column Headers */}
-          <div className="grid px-4 mb-4 text-xs font-bold text-gray-400 uppercase tracking-widest gap-4 items-center" style={{ gridTemplateColumns: '1fr 1fr 1fr 2rem' }}>
-            <div>Кадастровий номер</div>
-            <div>Співпадіння</div>
-            <button
-              onClick={() =>
-                setSortOrder(prev =>
-                  prev === 'none' ? 'desc' : prev === 'desc' ? 'asc' : 'none'
-                )
-              }
-              className="flex items-center gap-1.5 hover:text-slate-600 transition-colors group"
-              title="Сортувати за кількістю розбіжностей"
-            >
-              Розбіжності
-              <span className="inline-flex flex-col leading-none">
-                <svg
-                  className={`w-2.5 h-2.5 transition-colors ${
-                    sortOrder === 'asc' ? 'text-slate-700' : 'text-gray-300 group-hover:text-gray-400'
-                  }`}
-                  viewBox="0 0 10 6" fill="currentColor"
-                >
-                  <path d="M5 0l5 6H0z" />
-                </svg>
-                <svg
-                  className={`w-2.5 h-2.5 transition-colors ${
-                    sortOrder === 'desc' ? 'text-slate-700' : 'text-gray-300 group-hover:text-gray-400'
-                  }`}
-                  viewBox="0 0 10 6" fill="currentColor"
-                >
-                  <path d="M5 6L0 0h10z" />
-                </svg>
-              </span>
-            </button>
-            <input
-              type="checkbox"
-              checked={allPageSelected}
-              onChange={toggleSelectAll}
-              className="w-4 h-4 rounded accent-[#556B2F] cursor-pointer justify-self-center"
-              title="Вибрати всі на сторінці"
-            />
+          <div className="flex items-center px-2 mb-4 text-xs font-bold text-gray-400 uppercase tracking-widest">
+            {/* Text columns — mirror row button grid */}
+            <div className="flex-1 grid grid-cols-3 gap-4 px-3">
+              <div>Кадастровий номер</div>
+              <div>Співпадіння</div>
+              <button
+                onClick={() =>
+                  setSortOrder(prev =>
+                    prev === 'none' ? 'desc' : prev === 'desc' ? 'asc' : 'none'
+                  )
+                }
+                className="flex items-center gap-1.5 hover:text-slate-600 transition-colors group"
+                title="Сортувати за кількістю розбіжностей"
+              >
+                Розбіжності
+                <span className="inline-flex flex-col leading-none">
+                  <svg
+                    className={`w-2.5 h-2.5 transition-colors ${
+                      sortOrder === 'asc' ? 'text-slate-700' : 'text-gray-300 group-hover:text-gray-400'
+                    }`}
+                    viewBox="0 0 10 6" fill="currentColor"
+                  >
+                    <path d="M5 0l5 6H0z" />
+                  </svg>
+                  <svg
+                    className={`w-2.5 h-2.5 transition-colors ${
+                      sortOrder === 'desc' ? 'text-slate-700' : 'text-gray-300 group-hover:text-gray-400'
+                    }`}
+                    viewBox="0 0 10 6" fill="currentColor"
+                  >
+                    <path d="M5 6L0 0h10z" />
+                  </svg>
+                </span>
+              </button>
+            </div>
+            {/* Checkbox column — same padding as row checkboxes */}
+            <div className="pl-3 pr-2 flex-shrink-0 flex items-center">
+              <Checkbox
+                checked={allPageSelected}
+                onChange={toggleSelectAll}
+                title="Вибрати всі на сторінці"
+              />
+            </div>
           </div>
 
           {/* Content States */}
