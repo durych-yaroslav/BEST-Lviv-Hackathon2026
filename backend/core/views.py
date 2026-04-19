@@ -192,67 +192,88 @@ class RecordDetailView(generics.RetrieveAPIView):
 
 # ────────────────────────── PDF helpers ───────────────────────────
 
-PROBLEM_LABELS_EN = {
-    'edrpou_of_land_user':                     'Organization ID (EDRPOU)',
-    'land_user':                                'Land User / Owner',
-    'location':                                 'Location / Address',
-    'area':                                     'Area (sq.m)',
-    'date_of_state_registration_of_ownership':  'Registration Date',
-    'share_of_ownership':                       'Ownership Share',
-    'purpose':                                  'Usage Purpose',
+PROBLEM_LABELS_UA = {
+    'edrpou_of_land_user':                     'ЄДРПОУ / ІПН',
+    'land_user':                                'Землекористувач / Платник',
+    'location':                                 'Місцезнаходження / Адреса',
+    'area':                                     'Площа',
+    'date_of_state_registration_of_ownership':  'Дата реєстрації права',
+    'share_of_ownership':                       'Частка власності',
+    'purpose':                                  'Цільове призначення / Тип об\'єкта',
 }
 
 
 def _build_pdf_context(report, records_qs):
     """
     Aggregate stats and build the full template context for the PDF.
-    All per-record booleans are pre-computed here so the template
-    needs zero custom template tags.
+    Implements "forgiving" business rules like the frontend.
     """
     records = list(records_qs)
     total_records = len(records)
-    total_with_problems = sum(1 for r in records if r.problems)
-    total_clean = total_records - total_with_problems
-    problem_rate = round(total_with_problems / total_records * 100, 1) if total_records else 0
-
-    # ── Problem frequency table ──────────────────────────────────
+    
+    processed_records = []
+    total_with_problems = 0
     freq: dict = {}
+
     for rec in records:
-        for p in (rec.problems or []):
-            freq[p] = freq.get(p, 0) + 1
-
-    max_count = max(freq.values(), default=1)
-    problem_counts = []
-    for key, count in sorted(freq.items(), key=lambda x: x[1], reverse=True):
-        pct = round(count / total_records * 100, 1) if total_records else 0
-        problem_counts.append({
-            'key':       key,
-            'label':     PROBLEM_LABELS_EN.get(key, key),
-            'count':     count,
-            'pct':       pct,
-            'bar_width': round(count / max_count * 100),
-        })
-
-    # ── Top-10 most critical records ─────────────────────────────
-    top_10_records = sorted(records, key=lambda r: len(r.problems or []), reverse=True)[:10]
-
-    top_10 = []
-    for rec in top_10_records:
         problems = rec.problems or []
-        top_10.append({
-            'record':            rec,
-            'problem_count':     len(problems),
-            # Human-readable labels for the pills row
-            'problem_labels_list': [PROBLEM_LABELS_EN.get(p, p) for p in problems],
-            # Pre-computed booleans — one per comparison row in the template
+        
+        # ── Apply "Forgiving" Business Rules (matching frontend) ──
+        # Rule 1: share_of_ownership is never an error
+        problems = [p for p in problems if p != 'share_of_ownership']
+
+        # Rule 2: Area — land > property total area is acceptable
+        land_area = rec.land_data.get('area') if rec.land_data else 0
+        prop_area = rec.property_data.get('total_area') if rec.property_data else 0
+        try:
+            if float(land_area or 0) >= float(prop_area or 0):
+                problems = [p for p in problems if p != 'area']
+        except (ValueError, TypeError):
+            pass
+
+        # Rule 3: Date — if either date is missing we treat it as acceptable
+        land_date = rec.land_data.get('date_of_state_registration_of_ownership')
+        prop_date = rec.property_data.get('date_of_state_registration_of_ownership')
+        if not land_date or not prop_date:
+            problems = [p for p in problems if p != 'date_of_state_registration_of_ownership']
+
+        # Update frequency and count
+        if problems:
+            total_with_problems += 1
+            for p in problems:
+                freq[p] = freq.get(p, 0) + 1
+        
+        processed_records.append({
+            'record': rec,
+            'filtered_problems': problems,
+            'problem_count': len(problems),
+            'problem_labels_list': [PROBLEM_LABELS_UA.get(p, p) for p in problems],
             'has_land_user':  'land_user' in problems,
             'has_edrpou':     'edrpou_of_land_user' in problems,
             'has_location':   'location' in problems,
             'has_area':       'area' in problems,
             'has_purpose':    'purpose' in problems,
             'has_date':       'date_of_state_registration_of_ownership' in problems,
-            'has_share':      'share_of_ownership' in problems,
         })
+
+    total_clean = total_records - total_with_problems
+    problem_rate = round(total_with_problems / total_records * 100, 1) if total_records else 0
+
+    # ── Problem frequency table ──────────────────────────────────
+    max_count = max(freq.values(), default=1)
+    problem_counts = []
+    for key, count in sorted(freq.items(), key=lambda x: x[1], reverse=True):
+        pct = round(count / total_records * 100, 1) if total_records else 0
+        problem_counts.append({
+            'key':       key,
+            'label':     PROBLEM_LABELS_UA.get(key, key),
+            'count':     count,
+            'pct':       pct,
+            'bar_width': round(count / max_count * 100),
+        })
+
+    # ── Top-10 most critical records (filtered) ──────────────────
+    top_10 = sorted(processed_records, key=lambda x: x['problem_count'], reverse=True)[:10]
 
     return {
         'report':              report,
@@ -263,7 +284,7 @@ def _build_pdf_context(report, records_qs):
         'problem_counts':      problem_counts,
         'top_10':              top_10,
         'date':                timezone.now(),
-        'font_path':           FONT_PATH,
+        'font_path':           FONT_PATH.replace('\\', '/'),
     }
 
 

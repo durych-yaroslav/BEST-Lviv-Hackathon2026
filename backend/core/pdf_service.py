@@ -21,12 +21,13 @@ def register_fonts():
             os.makedirs(FONT_DIR, exist_ok=True)
             
         if not os.path.exists(FONT_PATH) or os.path.getsize(FONT_PATH) < 1000:
-            import urllib.request
             print(f"Downloading font to {FONT_PATH}...")
+            # Use a more reliable way to download if needed, but urllib is fine
+            opener = urllib.request.build_opener()
+            opener.addheaders = [('User-agent', 'Mozilla/5.0')]
+            urllib.request.install_opener(opener)
             urllib.request.urlretrieve(FONT_URL, FONT_PATH)
         
-        from reportlab.pdfbase import pdfmetrics
-        from reportlab.pdfbase.ttfonts import TTFont
         pdfmetrics.registerFont(TTFont('DejaVuSans', FONT_PATH))
         return 'DejaVuSans'
     except Exception as e:
