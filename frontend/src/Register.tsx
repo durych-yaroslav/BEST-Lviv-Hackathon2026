@@ -41,7 +41,7 @@ export default function Register() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 font-sans px-4">
+    <div className="h-screen overflow-hidden flex items-center justify-center bg-gray-50 font-sans px-4">
       <div className="max-w-md w-full bg-white rounded-2xl shadow-lg shadow-black/5 p-8 border border-gray-100">
         <h2 className="text-3xl font-bold text-center text-[#2F4F4F] mb-8">
           Реєстрація

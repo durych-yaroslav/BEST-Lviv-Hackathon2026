@@ -30,7 +30,7 @@ export default function Landing() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col font-sans bg-[#F8F9FA] text-[#2F4F4F]">
+    <div className="h-screen overflow-hidden flex flex-col font-sans bg-[#F8F9FA] text-[#2F4F4F]">
       {/* Navbar */}
       <nav className="w-full py-6 px-10 flex justify-between items-center bg-white shadow-sm">
         <div className="flex items-center gap-2">

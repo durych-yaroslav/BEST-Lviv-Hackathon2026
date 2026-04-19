@@ -558,7 +558,7 @@ export default function Report() {
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="h-screen bg-[#F8F9FA] flex flex-col font-sans overflow-hidden">
+    <div className="fixed inset-0 bg-[#F8F9FA] flex flex-col font-sans overflow-hidden overscroll-none">
       <Navbar />
 
       <main className="flex-1 flex w-full h-full min-h-0 overflow-hidden">
