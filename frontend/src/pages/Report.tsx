@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
@@ -251,6 +251,13 @@ export default function Report() {
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [chatOpen, setChatOpen] = useState(false);
+  const [chatInput, setChatInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'assistant'; text: string }[]>([
+    { role: 'assistant', text: 'Вітаю! Я ваш AI-асистент. Допомогти проаналізувати розбіжності у знайдених даних?' }
+  ]);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+  
   const PAGE_SIZE = 100;
 
   // ── Fetch records on mount ────────────────────────────────────────────────
@@ -461,6 +468,60 @@ export default function Report() {
       value,
     }));
   }, [records]);
+
+  // ── AI Chat Handler ───────────────────────────────────────────────────────
+  
+  const scrollToBottom = () => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTo({
+        top: chatContainerRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
+    }
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [chatMessages]);
+
+  const handleSendMessage = async () => {
+    if (!chatInput.trim() || !reportId) return;
+
+    const question = chatInput.trim();
+    setChatInput('');
+    setChatMessages(prev => [...prev, { role: 'user', text: question }]);
+    setChatLoading(true);
+
+    const token = localStorage.getItem('token');
+    
+    try {
+      const res = await fetch(`/api/reports/ai-analysis`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          report_id: reportId,
+          record_ids: Array.from(selectedIds),
+          question: question
+        })
+      });
+
+      if (!res.ok) {
+        throw new Error('Помилка сервера при обробці запиту');
+      }
+
+      const data = await res.json();
+      setChatMessages(prev => [...prev, { role: 'assistant', text: data.answer || 'Немає відповіді' }]);
+      
+    } catch (err: any) {
+      console.error('AI chat error:', err);
+      setChatMessages(prev => [...prev, { role: 'assistant', text: `Помилка: ${err.message || 'Не вдалося здійснити запит'}` }]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -899,10 +960,29 @@ export default function Report() {
           </div>
 
           {/* Chat Messages Area */}
-          <div className="flex-1 p-5 overflow-y-auto flex flex-col gap-5 bg-white space-y-4 pr-2">
-            <div className="self-start bg-gray-50 text-gray-700 rounded-2xl rounded-tl-sm px-4 py-3 text-sm leading-relaxed w-fit max-w-[85%] shadow-sm border border-gray-100/50">
-              Вітаю! Я ваш AI-асистент. Допомогти проаналізувати розбіжності у знайдених даних?
-            </div>
+          <div 
+            ref={chatContainerRef}
+            className="flex-1 p-5 overflow-y-auto flex flex-col gap-5 bg-white space-y-4 pr-2"
+          >
+            {chatMessages.map((msg, idx) => (
+              <div 
+                key={idx} 
+                className={`text-sm leading-relaxed w-fit max-w-[85%] shadow-sm border border-gray-100/50 px-4 py-3
+                  ${msg.role === 'assistant' 
+                    ? 'self-start bg-gray-50 text-gray-700 rounded-2xl rounded-tl-sm' 
+                    : 'self-end bg-[#556B2F] text-white rounded-2xl rounded-tr-sm break-words'}`}
+              >
+                {msg.text}
+              </div>
+            ))}
+            
+            {chatLoading && (
+              <div className="self-start bg-gray-50 text-gray-500 rounded-2xl rounded-tl-sm px-4 py-3 text-sm leading-relaxed w-fit max-w-[85%] shadow-sm flex items-center gap-2">
+                <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+              </div>
+            )}
           </div>
 
           {/* Chat Input Area */}
@@ -911,9 +991,17 @@ export default function Report() {
               <input
                 type="text"
                 placeholder="Напишіть повідомлення..."
-                className="flex-1 bg-transparent border-none focus:outline-none focus:ring-0 text-sm text-gray-900 placeholder-gray-400 py-1"
+                value={chatInput}
+                onChange={e => setChatInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleSendMessage()}
+                disabled={chatLoading}
+                className="flex-1 bg-transparent border-none focus:outline-none focus:ring-0 text-sm text-gray-900 placeholder-gray-400 py-1 disabled:opacity-50"
               />
-              <button className="ml-2 bg-slate-800 text-white rounded-full p-2.5 flex items-center justify-center hover:bg-slate-700 transition-all cursor-pointer shadow-sm active:scale-95">
+              <button 
+                onClick={handleSendMessage}
+                disabled={chatLoading || !chatInput.trim()}
+                className="ml-2 bg-slate-800 text-white rounded-full p-2.5 flex items-center justify-center hover:bg-slate-700 transition-all cursor-pointer shadow-sm active:scale-95 disabled:opacity-50"
+              >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
                 </svg>
