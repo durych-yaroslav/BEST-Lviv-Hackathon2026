@@ -401,10 +401,32 @@ class AIAnalysisView(views.APIView):
             records_context.append(entry)
 
         import json as _json
+
+        # ── Truncate context to fit model input limits ──
+        # gpt-4.1-mini supports ~1M tokens; ~4 chars per token → safe limit ~800k chars
+        MAX_CONTEXT_CHARS = 800_000
+
         context_str = _json.dumps(records_context, ensure_ascii=False, default=str)
 
+        # If too large, progressively trim records from the end
+        if len(context_str) > MAX_CONTEXT_CHARS:
+            # Try cutting records list; keep as many as fit
+            lo, hi = 1, len(records_context)
+            best = 1
+            while lo <= hi:
+                mid = (lo + hi) // 2
+                trial = _json.dumps(records_context[:mid], ensure_ascii=False, default=str)
+                if len(trial) <= MAX_CONTEXT_CHARS:
+                    best = mid
+                    lo = mid + 1
+                else:
+                    hi = mid - 1
+            records_context = records_context[:best]
+            context_str = _json.dumps(records_context, ensure_ascii=False, default=str)
+
         user_message = (
-            f"Here are the records from the report:\n\n"
+            f"Here are {len(records_context)} records from the report "
+            f"(total in report: {records.count()}):\n\n"
             f"{context_str}\n\n"
             f"Question: {question}"
         )
