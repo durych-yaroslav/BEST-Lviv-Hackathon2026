@@ -17,11 +17,6 @@
         @page {
             size: A4;
             margin: 2cm 2cm 2.5cm 2cm;
-            @bottom-right {
-                content: "Page " counter(page) " of " counter(pages);
-                font-size: 8pt;
-                color: #666666;
-            }
         }
 
         .header {
@@ -265,17 +260,23 @@
 
     {% for entry in top_10 %}
     <div class="critical-item">
-        <div class="item-header">
-            Case #{{ forloop.counter }}: 
-            {% if entry.record.land_data.cadastral_number %}
-                Cadastral No. {{ entry.record.land_data.cadastral_number }}
-            {% elif entry.record.property_data.tax_number_of_pp %}
-                Tax ID {{ entry.record.property_data.tax_number_of_pp }}
-            {% else %}
-                ID: {{ entry.record.id }}
-            {% endif %}
-            <span style="float: right;">Issues: {{ entry.problem_count }}</span>
-        </div>
+        <table style="width: 100%; font-weight: bold; font-size: 11pt; background-color: #e6e6e6; border-bottom: 1pt solid #000000; table-layout: fixed;">
+            <tr>
+                <td style="padding: 5px 10px; width: 80%;">
+                    Case #{{ forloop.counter }}: 
+                    {% if entry.record.land_data.cadastral_number %}
+                        Cadastral No. {{ entry.record.land_data.cadastral_number }}
+                    {% elif entry.record.property_data.tax_number_of_pp %}
+                        Tax ID {{ entry.record.property_data.tax_number_of_pp }}
+                    {% else %}
+                        ID: {{ entry.record.id }}
+                    {% endif %}
+                </td>
+                <td style="padding: 5px 10px; text-align: right; width: 20%;">
+                    Issues: {{ entry.problem_count }}
+                </td>
+            </tr>
+        </table>
 
         <table class="cmp-table">
             <thead>
