@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
-import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { Files, AlertTriangle, CheckCircle2 } from 'lucide-react';
 
 // ─── Types from API (matches RecordSerializer + README schema) ────────────────
@@ -55,6 +55,7 @@ const PROBLEM_LABELS: Record<string, string> = {
   date_of_state_registration_of_ownership: 'Дата реєстрації права',
   share_of_ownership: 'Частка власності',
   purpose: 'Цільове призначення',
+  missing_owner: 'Невідомий власник',
 };
 
 // ─── Comparison rows for expanded record detail view ─────────────────────────
@@ -392,12 +393,13 @@ export default function Report() {
 
   const PROBLEM_UA: Record<string, string> = {
     area: 'Площа',
-    location: 'Локація',
-    land_user: 'Власник',
+    location: 'Місцезнаходження',
+    land_user: 'Землекористувач',
     edrpou_of_land_user: 'ЄДРПОУ',
-    date_of_state_registration_of_ownership: 'Дати',
+    date_of_state_registration_of_ownership: 'Дата реєстрації',
     share_of_ownership: 'Частка власності',
     purpose: 'Цільове призначення',
+    missing_owner: 'Невідомий власник',
   };
 
   const CHART_COLORS = ['#f87171','#fb923c','#fbbf24','#34d399','#60a5fa','#818cf8','#a78bfa'];
@@ -461,38 +463,78 @@ export default function Report() {
                 </div>
               </div>
 
-              {/* Doughnut Chart */}
-              {problemDistribution.length > 0 && (
-                <div className="mb-6 bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                  <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4">Розподіл розбіжностей за типом</h4>
+              {/* Charts — side by side */}
+              <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Doughnut: problem type distribution */}
+                {problemDistribution.length > 0 && (
+                  <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                    <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4">Розподіл розбіжностей за типом</h4>
+                    <ResponsiveContainer width="100%" height={220}>
+                      <PieChart>
+                        <Pie
+                          data={problemDistribution}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={60}
+                          outerRadius={90}
+                          paddingAngle={3}
+                          dataKey="value"
+                        >
+                          {problemDistribution.map((_entry, index) => (
+                            <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          formatter={(value: number) => [`${value} записів`, '']}
+                          contentStyle={{ borderRadius: '10px', border: '1px solid #f1f5f9', fontSize: '12px' }}
+                        />
+                        <Legend
+                          iconType="circle"
+                          iconSize={8}
+                          formatter={(value) => <span style={{ fontSize: '12px', color: '#6b7280' }}>{value}</span>}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+
+                {/* Bar chart: match vs mismatch */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                  <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4">Знайдено розбіжностей / Співпадіння 100%</h4>
                   <ResponsiveContainer width="100%" height={220}>
-                    <PieChart>
-                      <Pie
-                        data={problemDistribution}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={60}
-                        outerRadius={90}
-                        paddingAngle={3}
-                        dataKey="value"
-                      >
-                        {problemDistribution.map((_entry, index) => (
-                          <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                        ))}
-                      </Pie>
+                    <BarChart
+                      data={[
+                        { name: 'Знайдено розбіжностей', value: recordsWithProblems, fill: '#f87171' },
+                        { name: 'Співпадіння 100%', value: cleanRecords, fill: '#34d399' },
+                      ]}
+                      layout="vertical"
+                      margin={{ top: 5, right: 30, left: 10, bottom: 5 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+                      <XAxis type="number" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+                      <YAxis
+                        type="category"
+                        dataKey="name"
+                        width={140}
+                        tick={{ fontSize: 11, fill: '#6b7280' }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
                       <Tooltip
                         formatter={(value: number) => [`${value} записів`, '']}
                         contentStyle={{ borderRadius: '10px', border: '1px solid #f1f5f9', fontSize: '12px' }}
+                        cursor={{ fill: '#f8fafc' }}
                       />
-                      <Legend
-                        iconType="circle"
-                        iconSize={8}
-                        formatter={(value) => <span style={{ fontSize: '12px', color: '#6b7280' }}>{value}</span>}
-                      />
-                    </PieChart>
+                      <Bar dataKey="value" radius={[0, 6, 6, 0]} maxBarSize={40}>
+                        {[
+                          <Cell key="mismatch" fill="#f87171" />,
+                          <Cell key="match" fill="#34d399" />,
+                        ]}
+                      </Bar>
+                    </BarChart>
                   </ResponsiveContainer>
                 </div>
-              )}
+              </div>
             </>
           )}
 
@@ -527,13 +569,11 @@ export default function Report() {
                   }`}
                 >
                   <option value="">Фільтрація</option>
-                  <option value="edrpou_of_land_user">ЄДРПОУ землекористувача</option>
-                  <option value="land_user">Землекористувач</option>
                   <option value="location">Місцезнаходження</option>
                   <option value="area">Площа</option>
                   <option value="date_of_state_registration_of_ownership">Дата реєстрації права</option>
-                  <option value="share_of_ownership">Частка власності</option>
                   <option value="purpose">Цільове призначення</option>
+                  <option value="missing_owner">Невідомий власник</option>
                 </select>
                 <svg className="w-4 h-4 text-gray-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
