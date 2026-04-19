@@ -467,7 +467,7 @@ export default function Report() {
     <div className="h-screen bg-[#F8F9FA] flex flex-col font-sans overflow-hidden">
       <Navbar />
 
-      <main className="flex-1 flex w-full h-full min-h-0">
+      <main className="flex-1 flex w-full h-full min-h-0 overflow-hidden">
         {/* Left Side: Report Content (75%) */}
         <div className="w-3/4 p-6 md:p-10 flex flex-col overflow-y-auto">
 

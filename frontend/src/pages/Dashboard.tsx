@@ -11,7 +11,7 @@ export default function Dashboard() {
   const [landData, setLandData] = useState<any[] | null>(null);
   const [propertyData, setPropertyData] = useState<any[] | null>(null);
   const [loading, setLoading] = useState(false);
-  
+
   const landInputRef = useRef<HTMLInputElement>(null);
   const propertyInputRef = useRef<HTMLInputElement>(null);
 
@@ -129,14 +129,14 @@ export default function Dashboard() {
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col overflow-hidden min-h-0">
             <div className="py-3 px-6 border-b border-gray-50 flex justify-between items-center bg-white/50">
               <h3 className="text-lg font-bold text-[#2F4F4F]">Реєстр 1 (Земля)</h3>
-              <input 
-                type="file" 
-                accept=".xlsx" 
-                className="hidden" 
+              <input
+                type="file"
+                accept=".xlsx"
+                className="hidden"
                 ref={landInputRef}
                 onChange={handleLandFileChange}
               />
-              <button 
+              <button
                 onClick={() => landInputRef.current?.click()}
                 className="text-sm px-4 py-2 rounded-lg bg-[#556B2F]/10 text-[#556B2F] hover:bg-[#556B2F] hover:text-white transition-all font-medium"
               >
@@ -163,14 +163,14 @@ export default function Dashboard() {
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col overflow-hidden min-h-0">
             <div className="py-3 px-6 border-b border-gray-50 flex justify-between items-center bg-white/50">
               <h3 className="text-lg font-bold text-[#2F4F4F]">Реєстр 2 (Нерухомість)</h3>
-              <input 
-                type="file" 
-                accept=".xlsx" 
-                className="hidden" 
+              <input
+                type="file"
+                accept=".xlsx"
+                className="hidden"
                 ref={propertyInputRef}
                 onChange={handlePropertyFileChange}
               />
-              <button 
+              <button
                 onClick={() => propertyInputRef.current?.click()}
                 className="text-sm px-4 py-2 rounded-lg bg-[#556B2F]/10 text-[#556B2F] hover:bg-[#556B2F] hover:text-white transition-all font-medium"
               >
@@ -202,7 +202,7 @@ export default function Dashboard() {
               <span className="font-bold">Помилка:</span> {error}
             </div>
           )}
-          <button 
+          <button
             onClick={handleAnalyze}
             disabled={loading}
             className="px-12 py-4 rounded-full bg-[#556B2F] text-white font-bold text-lg hover:bg-[#4a5d28] shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all duration-300 transform disabled:opacity-70 disabled:hover:-translate-y-0 flex items-center gap-3"
