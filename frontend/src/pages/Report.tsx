@@ -257,7 +257,33 @@ export default function Report() {
     { role: 'assistant', text: 'Вітаю! Я ваш AI-асистент. Допомогти проаналізувати розбіжності у знайдених даних?' }
   ]);
   const chatContainerRef = useRef<HTMLDivElement>(null);
-  
+  const [chatWidth, setChatWidth] = useState(360);
+  const isDraggingRef = useRef(false);
+
+  const startResize = (e: React.MouseEvent) => {
+    e.preventDefault();
+    isDraggingRef.current = true;
+    document.addEventListener('mousemove', doResize);
+    document.addEventListener('mouseup', stopResize);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  };
+
+  const doResize = (e: MouseEvent) => {
+    if (isDraggingRef.current) {
+      const newWidth = window.innerWidth - e.clientX;
+      setChatWidth(Math.max(300, Math.min(newWidth, window.innerWidth * 0.4)));
+    }
+  };
+
+  const stopResize = () => {
+    isDraggingRef.current = false;
+    document.removeEventListener('mousemove', doResize);
+    document.removeEventListener('mouseup', stopResize);
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  };
+
   const PAGE_SIZE = 100;
 
   // ── Fetch records on mount ────────────────────────────────────────────────
@@ -328,16 +354,16 @@ export default function Report() {
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       result = result.filter(r => {
-        const cadastral  = String(r.land_data?.cadastral_number ?? '').toLowerCase();
-        const location   = String(r.land_data?.location ?? '').toLowerCase();
-        const address    = String(r.property_data?.address_of_the_object ?? '').toLowerCase();
-        const landUser   = String(r.land_data?.land_user ?? '').toLowerCase();
-        const taxpayer   = String(r.property_data?.name_of_the_taxpayer ?? '').toLowerCase();
+        const cadastral = String(r.land_data?.cadastral_number ?? '').toLowerCase();
+        const location = String(r.land_data?.location ?? '').toLowerCase();
+        const address = String(r.property_data?.address_of_the_object ?? '').toLowerCase();
+        const landUser = String(r.land_data?.land_user ?? '').toLowerCase();
+        const taxpayer = String(r.property_data?.name_of_the_taxpayer ?? '').toLowerCase();
         return (
           cadastral.includes(q) ||
-          location.includes(q)  ||
-          address.includes(q)   ||
-          landUser.includes(q)  ||
+          location.includes(q) ||
+          address.includes(q) ||
+          landUser.includes(q) ||
           taxpayer.includes(q)
         );
       });
@@ -454,7 +480,7 @@ export default function Report() {
     missing_owner: 'Невідомий власник',
   };
 
-  const CHART_COLORS = ['#f87171','#fb923c','#fbbf24','#34d399','#60a5fa','#818cf8','#a78bfa'];
+  const CHART_COLORS = ['#f87171', '#fb923c', '#fbbf24', '#34d399', '#60a5fa', '#818cf8', '#a78bfa'];
 
   const problemDistribution = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -470,7 +496,7 @@ export default function Report() {
   }, [records]);
 
   // ── AI Chat Handler ───────────────────────────────────────────────────────
-  
+
   const scrollToBottom = () => {
     if (chatContainerRef.current) {
       chatContainerRef.current.scrollTo({
@@ -493,7 +519,7 @@ export default function Report() {
     setChatLoading(true);
 
     const token = localStorage.getItem('token');
-    
+
     try {
       const res = await fetch(`/api/reports/ai-analysis`, {
         method: 'POST',
@@ -521,7 +547,7 @@ export default function Report() {
 
       const data = await res.json();
       setChatMessages(prev => [...prev, { role: 'assistant', text: data.answer || 'Немає відповіді' }]);
-      
+
     } catch (err: any) {
       console.error('AI chat error:', err);
       setChatMessages(prev => [...prev, { role: 'assistant', text: `Помилка: ${err.message || 'Не вдалося здійснити запит'}` }]);
@@ -536,8 +562,8 @@ export default function Report() {
       <Navbar />
 
       <main className="flex-1 flex w-full h-full min-h-0 overflow-hidden">
-        {/* Left Side: Report Content (75%) */}
-        <div className="w-3/4 p-6 md:p-10 flex flex-col overflow-y-auto">
+        {/* Left Side: Report Content */}
+        <div className="flex-1 p-6 md:p-10 flex flex-col overflow-y-auto">
 
           {/* ── Analytics Dashboard ─────────────────────────────────────────── */}
           {!loading && !error && totalRecords > 0 && (
@@ -578,7 +604,7 @@ export default function Report() {
 
               {/* Charts — side by side */}
               <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-                 {/* Doughnut: problem type distribution — legend on the left */}
+                {/* Doughnut: problem type distribution — legend on the left */}
                 {problemDistribution.length > 0 && (
                   <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                     <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4">Розподіл розбіжностей за типом</h4>
@@ -685,11 +711,10 @@ export default function Report() {
                 <select
                   value={filterProblem}
                   onChange={e => setFilterProblem(e.target.value)}
-                  className={`pl-9 pr-8 py-2.5 rounded-xl border text-sm font-medium transition-colors shadow-sm appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-slate-200 ${
-                    filterProblem
-                      ? 'bg-red-50 border-red-200 text-red-700'
-                      : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
-                  }`}
+                  className={`pl-9 pr-8 py-2.5 rounded-xl border text-sm font-medium transition-colors shadow-sm appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-slate-200 ${filterProblem
+                    ? 'bg-red-50 border-red-200 text-red-700'
+                    : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+                    }`}
                 >
                   <option value="">Фільтрація</option>
                   <option value="location">Місцезнаходження</option>
@@ -785,17 +810,15 @@ export default function Report() {
                 Розбіжності
                 <span className="inline-flex flex-col leading-none">
                   <svg
-                    className={`w-2.5 h-2.5 transition-colors ${
-                      sortOrder === 'asc' ? 'text-slate-700' : 'text-gray-300 group-hover:text-gray-400'
-                    }`}
+                    className={`w-2.5 h-2.5 transition-colors ${sortOrder === 'asc' ? 'text-slate-700' : 'text-gray-300 group-hover:text-gray-400'
+                      }`}
                     viewBox="0 0 10 6" fill="currentColor"
                   >
                     <path d="M5 0l5 6H0z" />
                   </svg>
                   <svg
-                    className={`w-2.5 h-2.5 transition-colors ${
-                      sortOrder === 'desc' ? 'text-slate-700' : 'text-gray-300 group-hover:text-gray-400'
-                    }`}
+                    className={`w-2.5 h-2.5 transition-colors ${sortOrder === 'desc' ? 'text-slate-700' : 'text-gray-300 group-hover:text-gray-400'
+                      }`}
                     viewBox="0 0 10 6" fill="currentColor"
                   >
                     <path d="M5 6L0 0h10z" />
@@ -941,14 +964,22 @@ export default function Report() {
           )}
         </div>
 
-        {/* Right Side: AI Chat (25%) */}
+        {/* Resizer Handle (Desktop only) */}
+        <div
+          className="hidden md:block w-1.5 bg-gray-100 hover:bg-gray-300 cursor-col-resize transition-colors z-30 flex-shrink-0"
+          onMouseDown={startResize}
+        />
+
+        {/* Right Side: AI Chat */}
         {/* On desktop: always visible. On mobile: slides in as an overlay when chatOpen */}
         <div className={`
-          flex flex-col h-full bg-white border-l border-gray-100 shadow-sm z-20 transition-all duration-300
+          flex flex-col h-full bg-white border-l border-gray-100 shadow-sm z-20 transition-transform duration-300
           fixed right-0 top-0 bottom-0 w-[85vw] max-w-[360px]
-          md:static md:w-1/4 md:min-w-[300px] md:max-w-none md:translate-x-0
+          md:static md:w-[var(--dynamic-chat-width)] md:max-w-none md:translate-x-0
           ${chatOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}
-        `}>
+        `}
+          style={{ '--dynamic-chat-width': `${chatWidth}px` } as React.CSSProperties}
+        >
           {/* Chat Header */}
           <div className="p-5 border-b border-gray-50 bg-white/80 backdrop-blur-sm flex items-center justify-between">
             <h3 className="font-bold text-slate-800 flex items-center gap-2.5 text-sm tracking-tight">
@@ -967,22 +998,22 @@ export default function Report() {
           </div>
 
           {/* Chat Messages Area */}
-          <div 
+          <div
             ref={chatContainerRef}
             className="flex-1 p-5 overflow-y-auto flex flex-col gap-5 bg-white space-y-4 pr-2"
           >
             {chatMessages.map((msg, idx) => (
-              <div 
-                key={idx} 
+              <div
+                key={idx}
                 className={`text-sm leading-relaxed w-fit max-w-[85%] shadow-sm border border-gray-100/50 px-4 py-3
-                  ${msg.role === 'assistant' 
-                    ? 'self-start bg-gray-50 text-gray-700 rounded-2xl rounded-tl-sm' 
+                  ${msg.role === 'assistant'
+                    ? 'self-start bg-gray-50 text-gray-700 rounded-2xl rounded-tl-sm'
                     : 'self-end bg-[#556B2F] text-white rounded-2xl rounded-tr-sm break-words'}`}
               >
                 {msg.text}
               </div>
             ))}
-            
+
             {chatLoading && (
               <div className="self-start bg-gray-50 text-gray-500 rounded-2xl rounded-tl-sm px-4 py-3 text-sm leading-relaxed w-fit max-w-[85%] shadow-sm flex items-center gap-2">
                 <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
@@ -1004,7 +1035,7 @@ export default function Report() {
                 disabled={chatLoading}
                 className="flex-1 bg-transparent border-none focus:outline-none focus:ring-0 text-sm text-gray-900 placeholder-gray-400 py-1 disabled:opacity-50"
               />
-              <button 
+              <button
                 onClick={handleSendMessage}
                 disabled={chatLoading || !chatInput.trim()}
                 className="ml-2 bg-slate-800 text-white rounded-full p-2.5 flex items-center justify-center hover:bg-slate-700 transition-all cursor-pointer shadow-sm active:scale-95 disabled:opacity-50"
