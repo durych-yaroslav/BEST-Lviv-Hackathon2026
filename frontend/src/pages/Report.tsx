@@ -509,7 +509,14 @@ export default function Report() {
       });
 
       if (!res.ok) {
-        throw new Error('Помилка сервера при обробці запиту');
+        let errorMsg = 'Помилка сервера при обробці запиту';
+        try {
+          const errData = await res.json();
+          if (errData.error) errorMsg = errData.error;
+        } catch (e) {
+          // ignore json parse error
+        }
+        throw new Error(errorMsg);
       }
 
       const data = await res.json();

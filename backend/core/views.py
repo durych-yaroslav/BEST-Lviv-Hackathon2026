@@ -531,11 +531,14 @@ class AIAnalysisView(views.APIView):
         try:
             from openai import OpenAI
             client = OpenAI(api_key=api_key)
-            response = client.responses.create(
+            response = client.chat.completions.create(
                 model=model,
-                input=user_message,
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant analyzing property mismatch reports."},
+                    {"role": "user", "content": user_message}
+                ]
             )
-            answer = response.output_text
+            answer = response.choices[0].message.content
         except Exception as e:
             return Response(
                 {"error": f"AI analysis failed: {str(e)}"},
