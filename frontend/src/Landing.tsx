@@ -1,10 +1,28 @@
 import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 
 export default function Landing() {
   const navigate = useNavigate();
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [username, setUsername] = useState('');
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      setIsLoggedIn(true);
+      setUsername(localStorage.getItem('username') || 'Користувач');
+    }
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('username');
+    setIsLoggedIn(false);
+    navigate('/');
+  };
 
   const handleStart = () => {
-    if (localStorage.getItem('token')) {
+    if (isLoggedIn) {
       navigate('/dashboard');
     } else {
       navigate('/login');
@@ -21,19 +39,41 @@ export default function Landing() {
             Юніфай
           </div>
         </div>
-        <div className="flex gap-3 md:gap-4">
-          <Link 
-            to="/login"
-            className="px-5 py-2.5 md:px-7 rounded-full font-medium text-[#2F4F4F] hover:bg-gray-100 transition-colors duration-200"
-          >
-            Увійти
-          </Link>
-          <Link 
-            to="/register"
-            className="px-5 py-2.5 md:px-7 rounded-full font-medium bg-[#556B2F] text-white hover:bg-[#6B8E23] shadow-md hover:shadow-lg transition-all duration-200"
-          >
-            Зареєструватись
-          </Link>
+        <div className="flex items-center gap-3 md:gap-4">
+          {isLoggedIn ? (
+            <>
+              <span className="hidden md:inline-block font-medium text-[#2F4F4F]">
+                Привіт, {username}
+              </span>
+              <Link 
+                to="/dashboard"
+                className="px-4 py-2 md:px-6 md:py-2.5 rounded-full font-medium bg-[#556B2F] text-white hover:bg-[#6B8E23] shadow-md hover:shadow-lg transition-all duration-200"
+              >
+                Мої звіти
+              </Link>
+              <button 
+                onClick={handleLogout}
+                className="px-4 py-2 md:px-5 md:py-2.5 rounded-full font-medium text-red-500 hover:bg-red-50 transition-colors duration-200"
+              >
+                Вийти
+              </button>
+            </>
+          ) : (
+            <>
+              <Link 
+                to="/login"
+                className="px-5 py-2.5 md:px-7 rounded-full font-medium text-[#2F4F4F] hover:bg-gray-100 transition-colors duration-200"
+              >
+                Увійти
+              </Link>
+              <Link 
+                to="/register"
+                className="px-5 py-2.5 md:px-7 rounded-full font-medium bg-[#556B2F] text-white hover:bg-[#6B8E23] shadow-md hover:shadow-lg transition-all duration-200"
+              >
+                Зареєструватись
+              </Link>
+            </>
+          )}
         </div>
       </nav>
 
