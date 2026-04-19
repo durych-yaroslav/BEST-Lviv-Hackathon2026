@@ -12,6 +12,7 @@ from django.db.models.expressions import RawSQL
 from .models import Report, Record
 from .serializers import UserRegistrationSerializer, RecordSerializer
 from .services import process_excel_files
+from .pdf_service import PDFGenerator
 from .pagination import StandardResultsSetPagination
 
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
@@ -191,18 +192,45 @@ class RecordDetailView(generics.RetrieveAPIView):
 
 # ────────────────────────── Export ────────────────────────────────
 
-class ExportStubView(views.APIView):
+class ReportExportView(views.APIView):
     permission_classes = (IsAuthenticated,)
 
-    def post(self, request, *args, **kwargs):
-        report_ids = request.data.get('report_ids', [])
-        record_ids = request.data.get('record_ids', [])
+    def get(self, request, *args, **kwargs):
+        # Simply call the post logic for GET requests too
+        return self.post(request, *args, **kwargs)
 
-        response = HttpResponse(
-            b"%PDF-1.4\n%Stub PDF Export\n",
-            content_type='application/pdf',
-        )
-        response['Content-Disposition'] = 'attachment; filename="export.pdf"'
+    def post(self, request, *args, **kwargs):
+        report_id = self.kwargs.get('report_id')
+        record_ids = request.data.get('record_ids', [])
+        
+        # If no report_id in URL, check if it's a bulk export from body
+        if not report_id:
+            report_ids = request.data.get('report_ids', [])
+            if not report_ids:
+                return Response({"error": "No report_id or report_ids provided."}, status=400)
+            report_id = report_ids[0] # Just take first for current version
+
+        report = generics.get_object_or_404(Report, id=report_id)
+        
+        # Permission check
+        if report.user and report.user != request.user:
+            return Response({"error": "Forbidden"}, status=403)
+
+        if record_ids:
+            records = Record.objects.filter(report=report, id__in=record_ids)
+        else:
+            # Export all records for this report (limit to 500 for safety)
+            records = Record.objects.filter(report=report)[:500]
+
+        generator = PDFGenerator()
+        try:
+            pdf_content = generator.generate_report_pdf(report, records)
+        except Exception as e:
+            return Response({"error": f"PDF Generation failed: {str(e)}"}, status=500)
+
+        response = HttpResponse(pdf_content, content_type='application/pdf')
+        filename = f"report_{str(report.id)[:8]}.pdf"
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
         return response
 
 
