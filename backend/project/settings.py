@@ -4,6 +4,7 @@ Django settings for project.
 
 from pathlib import Path
 from datetime import timedelta
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -111,3 +112,7 @@ SIMPLE_JWT = {
 
     'JTI_CLAIM': 'jti',
 }
+
+# OpenAI settings
+OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
+OPENAI_MODEL = 'gpt-4.1-mini'

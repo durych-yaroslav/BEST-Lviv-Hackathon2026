@@ -5,7 +5,8 @@ from .views import (
     ReportCreateView, 
     RecordListView,
     RecordDetailView, 
-    ExportStubView
+    ExportStubView,
+    AIAnalysisView,
 )
 
 urlpatterns = [
@@ -23,4 +24,7 @@ urlpatterns = [
     # Export endpoints
     path('reports/export/', ExportStubView.as_view(), name='export_post'),
     path('reports/<uuid:report_id>/export/', ExportStubView.as_view(), name='export_pdf_get'),
+
+    # AI Analysis
+    path('reports/ai-analysis/', AIAnalysisView.as_view(), name='ai_analysis'),
 ]
