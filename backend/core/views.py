@@ -262,20 +262,6 @@ class AIAnalysisView(views.APIView):
         import json as _json
         context_str = _json.dumps(records_context, ensure_ascii=False, default=str)
 
-        system_prompt = (
-            "You are an expert municipal data analyst for Ukrainian territorial communities (OTG). "
-            "You analyze land registry and property registry data to find discrepancies, "
-            "calculate statistics, and answer questions about assets.\n\n"
-            "You will be given a set of records, each containing:\n"
-            "- land_data: land registry information (cadastral number, area in m², location, land user, EDRPOU, etc.)\n"
-            "- property_data: property registry information (taxpayer, object type, address, total area in m², etc.)\n"
-            "- problems: a list of detected discrepancies between land_data and property_data\n\n"
-            "Answer the user's question based on this data. Be precise with numbers. "
-            "If the question is in Ukrainian, answer in Ukrainian. "
-            "If in English, answer in English. "
-            "Keep answers concise but informative."
-        )
-
         user_message = (
             f"Here are the records from the report:\n\n"
             f"{context_str}\n\n"
@@ -296,16 +282,11 @@ class AIAnalysisView(views.APIView):
         try:
             from openai import OpenAI
             client = OpenAI(api_key=api_key)
-            completion = client.chat.completions.create(
+            response = client.responses.create(
                 model=model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_message},
-                ],
-                temperature=0.3,
-                max_tokens=2048,
+                input=user_message,
             )
-            answer = completion.choices[0].message.content
+            answer = response.output_text
         except Exception as e:
             return Response(
                 {"error": f"AI analysis failed: {str(e)}"},
