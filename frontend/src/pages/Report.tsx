@@ -260,24 +260,18 @@ export default function Report() {
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       result = result.filter(r => {
-        try {
-          const cadastral = (r.land_data?.cadastral_number || '').toLowerCase();
-          const landUser = (r.land_data?.land_user || '').toLowerCase();
-          const location = (r.land_data?.location || '').toLowerCase();
-          const edrpou = (r.land_data?.edrpou_of_land_user || '').toLowerCase();
-          const taxpayer = (r.property_data?.name_of_the_taxpayer || '').toLowerCase();
-          const taxNum = (r.property_data?.tax_number_of_pp || '').toLowerCase();
-          return (
-            cadastral.includes(q) ||
-            landUser.includes(q) ||
-            location.includes(q) ||
-            edrpou.includes(q) ||
-            taxpayer.includes(q) ||
-            taxNum.includes(q)
-          );
-        } catch {
-          return false;
-        }
+        const cadastral  = String(r.land_data?.cadastral_number ?? '').toLowerCase();
+        const location   = String(r.land_data?.location ?? '').toLowerCase();
+        const address    = String(r.property_data?.address_of_the_object ?? '').toLowerCase();
+        const landUser   = String(r.land_data?.land_user ?? '').toLowerCase();
+        const taxpayer   = String(r.property_data?.name_of_the_taxpayer ?? '').toLowerCase();
+        return (
+          cadastral.includes(q) ||
+          location.includes(q)  ||
+          address.includes(q)   ||
+          landUser.includes(q)  ||
+          taxpayer.includes(q)
+        );
       });
     }
 
@@ -377,7 +371,7 @@ export default function Report() {
               <div className="relative w-80">
                 <input
                   type="text"
-                  placeholder="Пошук за кадастровим номером, ЄДРПОУ..."
+                  placeholder="Пошук: кадастровий №, адреса, землекористувач..."
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 focus:outline-none focus:bg-white focus:ring-2 focus:ring-slate-200 transition-all text-sm placeholder:text-gray-400"
