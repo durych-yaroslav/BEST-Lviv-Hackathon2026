@@ -14,7 +14,7 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const response = await fetch('/api/auth/login', {
+      const response = await fetch('/api/auth/login/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -26,6 +26,7 @@ export default function Login() {
 
       const data = await response.json();
       localStorage.setItem('token', data.access_token);
+      localStorage.setItem('username', data.username);
       navigate('/dashboard');
     } catch (err: any) {
       setError(err.message || 'Сталася помилка');
