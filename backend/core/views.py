@@ -12,8 +12,14 @@ from django.db.models.expressions import RawSQL
 from .models import Report, Record
 from .serializers import UserRegistrationSerializer, RecordSerializer
 from .services import process_excel_files
-from .pdf_service import PDFGenerator
+from .pdf_service import PDFGenerator, FONT_PATH, register_fonts
 from .pagination import StandardResultsSetPagination
+
+import io
+from django.template.loader import get_template
+from django.utils import timezone
+from django.shortcuts import get_object_or_404
+from xhtml2pdf import pisa
 
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
@@ -234,6 +240,93 @@ class ReportExportView(views.APIView):
         return response
 
 
+class ReportPDFExportView(views.APIView):
+    """
+    Analytical PDF Report generation using xhtml2pdf.
+    GET /api/reports/{report_id}/export/
+    """
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request, report_id, *args, **kwargs):
+        # 1. Fetch data
+        report = get_object_or_404(Report, id=report_id)
+        
+        # Permission check
+        if report.user and report.user != request.user:
+            return Response({"error": "Forbidden: You do not own this report."}, status=403)
+
+        records = report.records.all()
+        total_records = records.count()
+        total_with_problems = records.exclude(problems=[]).count()
+
+        # 2. Statistics (Aggregation)
+        problem_counts = {}
+        for record in records:
+            for p in record.problems:
+                problem_counts[p] = problem_counts.get(p, 0) + 1
+        
+        # Sort problem_counts by frequency descending
+        sorted_problems = sorted(problem_counts.items(), key=lambda x: x[1], reverse=True)
+
+        # 3. Top 10 Critical
+        # Identify top 10 most critical records (by number of problems)
+        top_10 = sorted(records, key=lambda r: len(r.problems), reverse=True)[:10]
+
+        # Ensure font is available for Cyrillic
+        try:
+            register_fonts()
+        except:
+            pass
+
+        # 4. Render Context
+        context = {
+            'report': report,
+            'total_records': total_records,
+            'total_with_problems': total_with_problems,
+            'problem_counts': sorted_problems,
+            'top_10': top_10,
+            'date': timezone.now(),
+            'font_path': FONT_PATH, # Passed to @font-face in CSS
+        }
+
+        # 5. Generate PDF
+        template_path = 'report_template.html'
+        template = get_template(template_path)
+        html = template.render(context)
+        
+        result = io.BytesIO()
+
+        def link_callback(uri, rel):
+            """
+            Convert HTML URIs to absolute system paths so xhtml2pdf can access those
+            resources on disk.
+            """
+            import os
+            from django.conf import settings
+            
+            # If it's the font path we passed in context
+            if uri == FONT_PATH:
+                return FONT_PATH
+                
+            # Fallback for static/media if needed
+            return uri
+
+        pdf = pisa.pisaDocument(
+            io.BytesIO(html.encode("UTF-8")), 
+            result, 
+            encoding='UTF-8',
+            link_callback=link_callback
+        )
+        
+        if not pdf.err:
+            response = HttpResponse(result.getvalue(), content_type='application/pdf')
+            filename = f"analytical_report_{str(report.id)[:8]}.pdf"
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            return response
+        
+        return Response({"error": "Failed to generate PDF report."}, status=500)
+
+
 # ────────────────────────── AI Analysis ───────────────────────────
 
 class AIAnalysisView(views.APIView):
@@ -263,46 +356,52 @@ class AIAnalysisView(views.APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # ── Fetch records ──
+        # ── Fetch ALL records from the report ──
         report = _check_report_ownership(report_id, request.user)
-        if record_ids:
-            records = Record.objects.filter(report=report, id__in=record_ids)
-        else:
-            # If no specific record_ids given, use all records from the report
-            records = Record.objects.filter(report=report)
+        records = Record.objects.filter(report=report)
 
         if not records.exists():
             return Response(
-                {"error": "No records found for the given report and record IDs."},
+                {"error": "No records found for the given report."},
                 status=status.HTTP_404_NOT_FOUND,
             )
 
         # ── Build context for the AI ──
+        # record_ids contains FIELD NAMES (e.g. ["area", "total_area", "location"])
+        # Extract only those fields from each record's land_data and property_data
+        requested_fields = record_ids  # e.g. ["area", "total_area"]
+
         records_context = []
         for rec in records:
-            records_context.append({
-                "record_id": str(rec.id),
-                "problems": rec.problems,
-                "land_data": rec.land_data,
-                "property_data": rec.property_data,
-            })
+            entry = {"record_id": str(rec.id)}
+
+            if requested_fields:
+                # Extract only the requested fields from land_data and property_data
+                filtered_land = {
+                    k: v for k, v in (rec.land_data or {}).items()
+                    if k in requested_fields
+                }
+                filtered_property = {
+                    k: v for k, v in (rec.property_data or {}).items()
+                    if k in requested_fields
+                }
+                if filtered_land:
+                    entry["land_data"] = filtered_land
+                if filtered_property:
+                    entry["property_data"] = filtered_property
+                # Always include problems if "problems" is requested
+                if "problems" in requested_fields:
+                    entry["problems"] = rec.problems
+            else:
+                # No specific fields requested — send everything
+                entry["problems"] = rec.problems
+                entry["land_data"] = rec.land_data
+                entry["property_data"] = rec.property_data
+
+            records_context.append(entry)
 
         import json as _json
         context_str = _json.dumps(records_context, ensure_ascii=False, default=str)
-
-        system_prompt = (
-            "You are an expert municipal data analyst for Ukrainian territorial communities (OTG). "
-            "You analyze land registry and property registry data to find discrepancies, "
-            "calculate statistics, and answer questions about assets.\n\n"
-            "You will be given a set of records, each containing:\n"
-            "- land_data: land registry information (cadastral number, area in m², location, land user, EDRPOU, etc.)\n"
-            "- property_data: property registry information (taxpayer, object type, address, total area in m², etc.)\n"
-            "- problems: a list of detected discrepancies between land_data and property_data\n\n"
-            "Answer the user's question based on this data. Be precise with numbers. "
-            "If the question is in Ukrainian, answer in Ukrainian. "
-            "If in English, answer in English. "
-            "Keep answers concise but informative."
-        )
 
         user_message = (
             f"Here are the records from the report:\n\n"
@@ -324,16 +423,11 @@ class AIAnalysisView(views.APIView):
         try:
             from openai import OpenAI
             client = OpenAI(api_key=api_key)
-            completion = client.chat.completions.create(
+            response = client.responses.create(
                 model=model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_message},
-                ],
-                temperature=0.3,
-                max_tokens=2048,
+                input=user_message,
             )
-            answer = completion.choices[0].message.content
+            answer = response.output_text
         except Exception as e:
             return Response(
                 {"error": f"AI analysis failed: {str(e)}"},

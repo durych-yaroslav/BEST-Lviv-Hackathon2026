@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
+import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { Files, AlertTriangle, CheckCircle2 } from 'lucide-react';
 
 // ─── Types from API (matches RecordSerializer + README schema) ────────────────
 
@@ -73,9 +75,34 @@ function buildComparisonFields(record: Record): ComparisonField[] {
     { label: 'Землекористувач / Платник', landValue: l.land_user, propValue: p.name_of_the_taxpayer, problemKey: 'land_user' },
     { label: 'ЄДРПОУ / ІПН', landValue: l.edrpou_of_land_user, propValue: p.tax_number_of_pp, problemKey: 'edrpou_of_land_user' },
     { label: 'Місцезнаходження / Адреса', landValue: l.location, propValue: p.address_of_the_object, problemKey: 'location' },
-    { label: 'Частка власності', landValue: l.share_of_ownership, propValue: p.share_of_ownership, problemKey: 'share_of_ownership' },
+    // share_of_ownership intentionally excluded per business rules
     { label: 'Дата реєстрації права', landValue: l.date_of_state_registration_of_ownership, propValue: p.date_of_state_registration_of_ownership, problemKey: 'date_of_state_registration_of_ownership' },
   ];
+}
+
+// ─── Forgiving business-rules filter ─────────────────────────────────────────
+
+function getFilteredProblems(record: Record): string[] {
+  let problems = [...(record.problems || [])];
+
+  // Rule 1: share_of_ownership is never an error
+  problems = problems.filter(p => p !== 'share_of_ownership');
+
+  // Rule 2: Area — land > property total area is acceptable (land includes property)
+  const landArea = record.land_data?.area ?? 0;
+  const propArea = record.property_data?.total_area ?? 0;
+  if ((landArea as number) > (propArea as number)) {
+    problems = problems.filter(p => p !== 'area');
+  }
+
+  // Rule 3: Date — if either date is missing we treat it as acceptable
+  const landDate = record.land_data?.date_of_state_registration_of_ownership;
+  const propDate = record.property_data?.date_of_state_registration_of_ownership;
+  if (!landDate || !propDate) {
+    problems = problems.filter(p => p !== 'date_of_state_registration_of_ownership');
+  }
+
+  return problems;
 }
 
 // ─── Single record row (accordion) ───────────────────────────────────────────
@@ -89,10 +116,13 @@ interface RecordRowProps {
 
 const RecordRow: React.FC<RecordRowProps> = ({ record, defaultOpen = false, isSelected, onToggleSelect }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
-  const mismatchCount = record.problems.length;
-  const matchCount = buildComparisonFields(record).length - mismatchCount;
-  const cadastral = record.land_data.cadastral_number || record.record_id.slice(0, 18) + '...';
+
+  // Apply forgiving business rules — do NOT mutate record.problems
+  const filteredProblems = getFilteredProblems(record);
+  const mismatchCount = filteredProblems.length;
   const compFields = buildComparisonFields(record);
+  const matchCount = compFields.length - mismatchCount;
+  const cadastral = record.land_data.cadastral_number || record.record_id.slice(0, 18) + '...';
 
   return (
     <div className={`border rounded-xl bg-white mb-4 overflow-hidden shadow-sm p-2 transition-colors ${isSelected ? 'border-[#556B2F]/40 bg-[#556B2F]/5' : 'border-gray-100'
@@ -126,10 +156,10 @@ const RecordRow: React.FC<RecordRowProps> = ({ record, defaultOpen = false, isSe
 
       {isOpen && (
         <div className="p-6 border-t border-gray-50 bg-white">
-          {/* Problem badges */}
+          {/* Problem badges — only filtered, forgiving set */}
           {mismatchCount > 0 && (
             <div className="mb-5 flex flex-wrap gap-2">
-              {record.problems.map(p => (
+              {filteredProblems.map(p => (
                 <span key={p} className="bg-red-50 text-red-600 border border-red-100 rounded-full px-3 py-1 text-xs font-semibold">
                   {PROBLEM_LABELS[p] || p}
                 </span>
@@ -152,7 +182,8 @@ const RecordRow: React.FC<RecordRowProps> = ({ record, defaultOpen = false, isSe
               </thead>
               <tbody className="text-gray-900 divide-y divide-gray-50">
                 {compFields.map(field => {
-                  const hasProblem = field.problemKey && record.problems.includes(field.problemKey);
+                  // Use forgiving filteredProblems (not raw record.problems) for highlighting
+                  const hasProblem = !!field.problemKey && filteredProblems.includes(field.problemKey);
                   const landVal = field.landValue !== null && field.landValue !== undefined ? String(field.landValue) : '—';
                   const propVal = field.propValue !== null && field.propValue !== undefined ? String(field.propValue) : '—';
                   return (
@@ -260,24 +291,18 @@ export default function Report() {
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       result = result.filter(r => {
-        try {
-          const cadastral = (r.land_data?.cadastral_number || '').toLowerCase();
-          const landUser = (r.land_data?.land_user || '').toLowerCase();
-          const location = (r.land_data?.location || '').toLowerCase();
-          const edrpou = (r.land_data?.edrpou_of_land_user || '').toLowerCase();
-          const taxpayer = (r.property_data?.name_of_the_taxpayer || '').toLowerCase();
-          const taxNum = (r.property_data?.tax_number_of_pp || '').toLowerCase();
-          return (
-            cadastral.includes(q) ||
-            landUser.includes(q) ||
-            location.includes(q) ||
-            edrpou.includes(q) ||
-            taxpayer.includes(q) ||
-            taxNum.includes(q)
-          );
-        } catch {
-          return false;
-        }
+        const cadastral  = String(r.land_data?.cadastral_number ?? '').toLowerCase();
+        const location   = String(r.land_data?.location ?? '').toLowerCase();
+        const address    = String(r.property_data?.address_of_the_object ?? '').toLowerCase();
+        const landUser   = String(r.land_data?.land_user ?? '').toLowerCase();
+        const taxpayer   = String(r.property_data?.name_of_the_taxpayer ?? '').toLowerCase();
+        return (
+          cadastral.includes(q) ||
+          location.includes(q)  ||
+          address.includes(q)   ||
+          landUser.includes(q)  ||
+          taxpayer.includes(q)
+        );
       });
     }
 
@@ -359,8 +384,36 @@ export default function Report() {
     }
   };
 
-  // ── Stats ─────────────────────────────────────────────────────────────────
-  const totalProblems = records.filter(r => r.problems.length > 0).length;
+  // ── Analytics ─────────────────────────────────────────────────────────────
+  const totalRecords = records.length;
+  const recordsWithProblems = records.filter(r => r.problems && r.problems.length > 0).length;
+  const cleanRecords = totalRecords - recordsWithProblems;
+  const totalProblems = recordsWithProblems;
+
+  const PROBLEM_UA: Record<string, string> = {
+    area: 'Площа',
+    location: 'Локація',
+    land_user: 'Власник',
+    edrpou_of_land_user: 'ЄДРПОУ',
+    date_of_state_registration_of_ownership: 'Дати',
+    share_of_ownership: 'Частка власності',
+    purpose: 'Цільове призначення',
+  };
+
+  const CHART_COLORS = ['#f87171','#fb923c','#fbbf24','#34d399','#60a5fa','#818cf8','#a78bfa'];
+
+  const problemDistribution = useMemo(() => {
+    const counts: Record<string, number> = {};
+    records.forEach(r => {
+      (r.problems || []).forEach(p => {
+        counts[p] = (counts[p] || 0) + 1;
+      });
+    });
+    return Object.entries(counts).map(([key, value]) => ({
+      name: PROBLEM_UA[key] || key,
+      value,
+    }));
+  }, [records]);
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -371,13 +424,85 @@ export default function Report() {
         {/* Left Side: Report Content (75%) */}
         <div className="w-3/4 p-6 md:p-10 flex flex-col overflow-y-auto">
 
+          {/* ── Analytics Dashboard ─────────────────────────────────────────── */}
+          {!loading && !error && totalRecords > 0 && (
+            <>
+              {/* KPI Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                {/* Total */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-center gap-4">
+                  <div className="w-11 h-11 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
+                    <Files className="w-5 h-5 text-slate-600" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-slate-800">{totalRecords}</p>
+                    <p className="text-xs text-gray-400 font-medium mt-0.5">Всього об'єктів</p>
+                  </div>
+                </div>
+                {/* Problems */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-center gap-4">
+                  <div className="w-11 h-11 rounded-xl bg-red-50 flex items-center justify-center shrink-0">
+                    <AlertTriangle className="w-5 h-5 text-red-400" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-red-500">{recordsWithProblems}</p>
+                    <p className="text-xs text-gray-400 font-medium mt-0.5">Знайдено розбіжностей</p>
+                  </div>
+                </div>
+                {/* Clean */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-center gap-4">
+                  <div className="w-11 h-11 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-emerald-600">{cleanRecords}</p>
+                    <p className="text-xs text-gray-400 font-medium mt-0.5">Співпадіння 100%</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Doughnut Chart */}
+              {problemDistribution.length > 0 && (
+                <div className="mb-6 bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                  <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4">Розподіл розбіжностей за типом</h4>
+                  <ResponsiveContainer width="100%" height={220}>
+                    <PieChart>
+                      <Pie
+                        data={problemDistribution}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={90}
+                        paddingAngle={3}
+                        dataKey="value"
+                      >
+                        {problemDistribution.map((_entry, index) => (
+                          <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        formatter={(value: number) => [`${value} записів`, '']}
+                        contentStyle={{ borderRadius: '10px', border: '1px solid #f1f5f9', fontSize: '12px' }}
+                      />
+                      <Legend
+                        iconType="circle"
+                        iconSize={8}
+                        formatter={(value) => <span style={{ fontSize: '12px', color: '#6b7280' }}>{value}</span>}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </>
+          )}
+
           {/* Header Controls */}
           <div className="flex justify-between items-center mb-8 bg-white p-4 rounded-2xl shadow-sm border border-gray-50">
             <div className="flex gap-3 items-center">
               <div className="relative w-80">
                 <input
                   type="text"
-                  placeholder="Пошук за кадастровим номером, ЄДРПОУ..."
+                  placeholder="Пошук: кадастровий №, адреса, землекористувач..."
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 focus:outline-none focus:bg-white focus:ring-2 focus:ring-slate-200 transition-all text-sm placeholder:text-gray-400"
