@@ -1,498 +1,338 @@
 <!DOCTYPE html>
-<html lang="uk">
+<html lang="en">
 <head>
     <meta charset="UTF-8" />
     <style>
-        @font-face {
-            font-family: 'DejaVuSans';
-            src: url('{{ font_path }}');
-        }
-
+        /* Formal Executive Report Styles */
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
-            font-family: 'DejaVuSans', 'Helvetica', sans-serif;
-            font-size: 9pt;
-            color: #1a1a2e;
+            font-family: 'Helvetica', 'Arial', sans-serif;
+            font-size: 10pt;
+            color: #000000;
             background: #ffffff;
-            line-height: 1.45;
+            line-height: 1.5;
         }
 
         @page {
             size: A4;
-            margin: 1.8cm 1.5cm 2cm 1.5cm;
+            margin: 2cm 2cm 2.5cm 2cm;
+            @bottom-right {
+                content: "Page " counter(page) " of " counter(pages);
+                font-size: 8pt;
+                color: #666666;
+            }
         }
 
-        .cover-header {
-            border-bottom: 3px solid #1e3a5f;
-            padding-bottom: 14px;
+        .header {
+            border-bottom: 2pt solid #000000;
+            padding-bottom: 10px;
+            margin-bottom: 30px;
+            display: table;
+            width: 100%;
+        }
+
+        .header-left {
+            display: table-cell;
+            vertical-align: bottom;
+        }
+
+        .header-right {
+            display: table-cell;
+            vertical-align: bottom;
+            text-align: right;
+        }
+
+        .report-title {
+            font-size: 18pt;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        .report-subtitle {
+            font-size: 10pt;
+            font-weight: normal;
+            color: #444444;
+        }
+
+        .meta-table {
+            width: 100%;
+            margin-bottom: 40px;
+            border-collapse: collapse;
+        }
+
+        .meta-table td {
+            padding: 4px 0;
+            font-size: 9pt;
+        }
+
+        .label { font-weight: bold; width: 150px; }
+
+        .section {
+            margin-bottom: 30px;
+        }
+
+        .section-header {
+            font-size: 12pt;
+            font-weight: bold;
+            border-bottom: 1pt solid #cccccc;
+            padding-bottom: 5px;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+        }
+
+        .stats-table {
+            width: 60%;
+            border-collapse: collapse;
             margin-bottom: 20px;
         }
 
-        .cover-top-row { display: table; width: 100%; }
-
-        .cover-logo-cell {
-            display: table-cell;
-            vertical-align: middle;
-            width: 60px;
+        .stats-table th, .stats-table td {
+            padding: 8px;
+            border: 0.5pt solid #000000;
+            text-align: left;
         }
 
-        .logo-box {
-            width: 44px;
-            height: 44px;
-            background: #1e3a5f;
-            border-radius: 6px;
-            display: table;
-        }
-
-        .logo-inner {
-            display: table-cell;
-            text-align: center;
-            vertical-align: middle;
-            color: #ffffff;
-            font-size: 18pt;
+        .stats-table th {
+            background-color: #f2f2f2;
             font-weight: bold;
         }
 
-        .cover-title-cell {
-            display: table-cell;
-            vertical-align: middle;
-            padding-left: 12px;
+        /* Impact Table */
+        .freq-table {
+            width: 100%;
+            border-collapse: collapse;
         }
 
-        .cover-org {
-            font-size: 7pt;
-            color: #64748b;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            margin-bottom: 3px;
+        .freq-table th, .freq-table td {
+            padding: 8px;
+            border: 0.5pt solid #000000;
+            text-align: left;
         }
-
-        .cover-main-title {
-            font-size: 16pt;
-            font-weight: bold;
-            color: #1e3a5f;
-        }
-
-        .cover-meta-row { display: table; width: 100%; margin-top: 10px; }
-        .cover-meta-cell { display: table-cell; width: 50%; }
-        .cover-meta-cell.right { text-align: right; }
-
-        .meta-label {
-            font-size: 6.5pt;
-            color: #94a3b8;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-        }
-
-        .meta-value {
-            font-size: 8pt;
-            color: #334155;
-            font-weight: bold;
-        }
-
-        .section-title {
-            font-size: 8pt;
-            font-weight: bold;
-            color: #1e3a5f;
-            text-transform: uppercase;
-            letter-spacing: 0.12em;
-            border-left: 3px solid #3b82f6;
-            padding-left: 8px;
-            margin-bottom: 10px;
-            margin-top: 18px;
-        }
-
-        .kpi-row { display: table; width: 100%; margin-bottom: 16px; }
-
-        .kpi-cell {
-            display: table-cell;
-            width: 25%;
-            padding-right: 8px;
-        }
-        .kpi-cell:last-child { padding-right: 0; }
-
-        .kpi-card {
-            border: 1px solid #e2e8f0;
-            border-radius: 6px;
-            padding: 10px 12px;
-            background: #f8fafc;
-        }
-        .kpi-card.danger  { border-color: #fca5a5; background: #fff5f5; }
-        .kpi-card.success { border-color: #86efac; background: #f0fdf4; }
-        .kpi-card.warning { border-color: #fcd34d; background: #fffbeb; }
-
-        .kpi-number {
-            font-size: 20pt;
-            font-weight: bold;
-            color: #1e3a5f;
-            line-height: 1;
-        }
-        .kpi-card.danger  .kpi-number { color: #dc2626; }
-        .kpi-card.success .kpi-number { color: #16a34a; }
-        .kpi-card.warning .kpi-number { color: #d97706; }
-
-        .kpi-label { font-size: 7pt; color: #64748b; margin-top: 3px; }
-
-        .freq-table { width: 100%; border-collapse: collapse; margin-bottom: 6px; }
 
         .freq-table th {
-            background: #1e3a5f;
-            color: #ffffff;
-            font-size: 7pt;
-            text-transform: uppercase;
-            letter-spacing: 0.06em;
-            padding: 6px 10px;
+            background-color: #f2f2f2;
+            font-size: 9pt;
+        }
+
+        .critical-item {
+            margin-bottom: 25px;
+            page-break-inside: avoid;
+            border: 1pt solid #000000;
+            padding: 15px;
+        }
+
+        .item-header {
+            font-weight: bold;
+            font-size: 11pt;
+            margin-bottom: 10px;
+            background-color: #e6e6e6;
+            padding: 5px 10px;
+            border-bottom: 1pt solid #000000;
+        }
+
+        .cmp-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 9pt;
+        }
+
+        .cmp-table th, .cmp-table td {
+            padding: 6px 8px;
+            border: 0.5pt solid #000000;
             text-align: left;
         }
-        .freq-table th.right { text-align: right; }
-
-        .freq-table td {
-            padding: 5px 10px;
-            font-size: 8.5pt;
-            border-bottom: 1px solid #f1f5f9;
-            vertical-align: middle;
-        }
-        .freq-table tr:nth-child(even) td { background: #f8fafc; }
-
-        .freq-bar-bg {
-            background: #e2e8f0;
-            border-radius: 3px;
-            height: 8px;
-            width: 100%;
-        }
-        .freq-bar-fill {
-            background: #3b82f6;
-            border-radius: 3px;
-            height: 8px;
-        }
-        .freq-count { font-weight: bold; color: #dc2626; text-align: right; }
-
-        .case-card {
-            border: 1px solid #e2e8f0;
-            border-radius: 6px;
-            margin-bottom: 14px;
-            page-break-inside: avoid;
-            overflow: hidden;
-        }
-
-        .case-header {
-            display: table;
-            width: 100%;
-            background: #1e3a5f;
-            padding: 7px 12px;
-        }
-        .case-header-left  { display: table-cell; vertical-align: middle; }
-        .case-header-right { display: table-cell; text-align: right; vertical-align: middle; }
-
-        .case-rank { font-size: 7pt; color: #93c5fd; text-transform: uppercase; letter-spacing: 0.08em; }
-        .case-id   { font-size: 9.5pt; font-weight: bold; color: #ffffff; }
-
-        .case-problem-count { font-size: 7pt; color: #fca5a5; }
-        .case-problem-count span {
-            font-size: 14pt;
-            font-weight: bold;
-            color: #f87171;
-            display: block;
-            line-height: 1;
-        }
-
-        .pills-row {
-            padding: 6px 10px;
-            background: #fff7ed;
-            border-bottom: 1px solid #fed7aa;
-        }
-        .pill {
-            display: inline-block;
-            background: #fee2e2;
-            color: #991b1b;
-            border: 1px solid #fca5a5;
-            border-radius: 10px;
-            padding: 1px 8px;
-            font-size: 6.5pt;
-            font-weight: bold;
-            margin-right: 4px;
-            margin-bottom: 2px;
-        }
-
-        .cmp-table { width: 100%; border-collapse: collapse; font-size: 8pt; }
 
         .cmp-table th {
-            padding: 5px 8px;
-            font-size: 6.5pt;
-            font-weight: bold;
-            color: #475569;
-            text-transform: uppercase;
-            letter-spacing: 0.06em;
-            border-bottom: 1px solid #e2e8f0;
-            text-align: left;
-            background: #f1f5f9;
+            background-color: #f9f9f9;
         }
-        .cmp-table th.field-col  { width: 24%; background: #f8fafc; }
-        .cmp-table th.data-col   { width: 35%; }
-        .cmp-table th.status-col { width: 6%; text-align: center; }
 
-        .cmp-table td {
-            padding: 5px 8px;
-            border-bottom: 1px solid #f1f5f9;
-            vertical-align: top;
-        }
-        .cmp-table td.field-name {
-            font-size: 7pt;
+        .highlight {
+            background-color: #fff2f2;
+            color: #b30000;
             font-weight: bold;
-            color: #64748b;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            background: #f8fafc;
         }
-        .cmp-table td.data-cell  { color: #1e293b; }
-        .cmp-table td.highlight  { background: #fff1f2; color: #9f1239; font-weight: bold; }
-        .cmp-table td.status-cell { text-align: center; font-size: 8pt; font-weight: bold; }
-        .cmp-table td.status-ok  { color: #16a34a; }
-        .cmp-table td.status-err { color: #dc2626; background: #fff1f2; }
-        .cmp-table tr:last-child td { border-bottom: none; }
 
-        .footer-note {
-            margin-top: 20px;
-            padding-top: 8px;
-            border-top: 1px solid #e2e8f0;
-            font-size: 6.5pt;
-            color: #94a3b8;
+        .status-ok { color: #008000; font-weight: bold; }
+        .status-err { color: #b30000; font-weight: bold; }
+
+        .footer {
+            position: fixed;
+            bottom: 0;
+            width: 100%;
             text-align: center;
+            font-size: 8pt;
+            color: #888888;
+            border-top: 0.5pt solid #dddddd;
+            padding-top: 5px;
         }
 
-        .text-muted { color: #94a3b8; }
         .page-break { page-break-before: always; }
     </style>
 </head>
 <body>
 
-<!-- COVER -->
-<div class="cover-header">
-    <div class="cover-top-row">
-        <div class="cover-logo-cell">
-            <div class="logo-box"><div class="logo-inner">У</div></div>
-        </div>
-        <div class="cover-title-cell">
-            <div class="cover-org">Юніфай — Система аудиту реєстрів ОТГ</div>
-            <div class="cover-main-title">Аналітичний звіт: Розбіжності в реєстрах</div>
-        </div>
+<div class="header">
+    <div class="header-left">
+        <div class="report-title">Audit Discrepancy Report</div>
+        <div class="report-subtitle">Unified Registry Verification System</div>
     </div>
-    <div class="cover-meta-row">
-        <div class="cover-meta-cell">
-            <div class="meta-label">Ідентифікатор звіту</div>
-            <div class="meta-value">{{ report.id }}</div>
-        </div>
-        <div class="cover-meta-cell right">
-            <div class="meta-label">Дата формування</div>
-            <div class="meta-value">{{ date|date:"d.m.Y" }} о {{ date|date:"H:i" }}</div>
-        </div>
+    <div class="header-right">
+        <div style="font-size: 14pt; font-weight: bold;">STRICTLY CONFIDENTIAL</div>
     </div>
 </div>
 
-<!-- SECTION 1: KPI -->
-<div class="section-title">1. Зведена інформація</div>
-<div class="kpi-row">
-    <div class="kpi-cell">
-        <div class="kpi-card">
-            <div class="kpi-number">{{ total_records }}</div>
-            <div class="kpi-label">Всього записів перевірено</div>
-        </div>
-    </div>
-    <div class="kpi-cell">
-        <div class="kpi-card danger">
-            <div class="kpi-number">{{ total_with_problems }}</div>
-            <div class="kpi-label">Записів з розбіжностями</div>
-        </div>
-    </div>
-    <div class="kpi-cell">
-        <div class="kpi-card success">
-            <div class="kpi-number">{{ total_clean }}</div>
-            <div class="kpi-label">Без розбіжностей</div>
-        </div>
-    </div>
-    <div class="kpi-cell">
-        <div class="kpi-card warning">
-            <div class="kpi-number">{{ problem_rate }}%</div>
-            <div class="kpi-label">Рівень розбіжностей</div>
-        </div>
-    </div>
-</div>
-
-<!-- SECTION 2: FREQUENCY -->
-<div class="section-title">2. Частота розбіжностей за типом</div>
-{% if problem_counts %}
-<table class="freq-table">
-    <thead>
-        <tr>
-            <th style="width:28%;">Тип розбіжності</th>
-            <th style="width:6%;" class="right">К-сть</th>
-            <th style="width:6%;" class="right">%</th>
-            <th>Розподіл</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for item in problem_counts %}
-        <tr>
-            <td>{{ item.label }}</td>
-            <td class="freq-count">{{ item.count }}</td>
-            <td style="text-align:right; color:#64748b;">{{ item.pct }}%</td>
-            <td>
-                <div class="freq-bar-bg">
-                    <div class="freq-bar-fill" style="width:{{ item.bar_width }}%;"></div>
-                </div>
-            </td>
-        </tr>
-        {% endfor %}
-    </tbody>
+<table class="meta-table">
+    <tr>
+        <td class="label">Report ID:</td>
+        <td>{{ report.id }}</td>
+    </tr>
+    <tr>
+        <td class="label">Generated on:</td>
+        <td>{{ date|date:"Y-m-d H:i" }}</td>
+    </tr>
+    <tr>
+        <td class="label">Status:</td>
+        <td>Final Analysis</td>
+    </tr>
 </table>
-{% else %}
-<p class="text-muted" style="font-size:8pt; padding:6px 0;">Розбіжностей не виявлено.</p>
-{% endif %}
 
-<!-- SECTION 3: TOP 10 -->
-<div class="section-title page-break">3. Топ-10 критичних об'єктів</div>
-<p style="font-size:7.5pt; color:#64748b; margin-bottom:12px; margin-top:-6px;">
-    Записи відсортовано за кількістю розбіжностей. Значення що відрізняються — виділені рожевим.
-</p>
+<div class="section">
+    <div class="section-header">1. Executive Summary</div>
+    <p style="margin-bottom: 15px;">
+        This report summarizes the findings of the automated audit performed across land and property registries. 
+        The primary objective was to identify data inconsistencies and ownership discrepancies that require administrative intervention.
+    </p>
+    
+    <table class="stats-table">
+        <tr>
+            <th>Metric</th>
+            <th>Value</th>
+        </tr>
+        <tr>
+            <td>Total Records Audited</td>
+            <td>{{ total_records }}</td>
+        </tr>
+        <tr>
+            <td>Records with Discrepancies</td>
+            <td style="color: #b30000; font-weight: bold;">{{ total_with_problems }}</td>
+        </tr>
+        <tr>
+            <td>Compliant Records</td>
+            <td>{{ total_clean }}</td>
+        </tr>
+        <tr>
+            <td>Discrepancy Rate</td>
+            <td style="font-weight: bold;">{{ problem_rate }}%</td>
+        </tr>
+    </table>
+</div>
 
-{% for entry in top_10 %}
-<div class="case-card">
-
-    <div class="case-header">
-        <div class="case-header-left">
-            <div class="case-rank">Об'єкт {{ forloop.counter }} з 10</div>
-            <div class="case-id">
-                {% if entry.record.land_data.cadastral_number %}
-                    Кад. №: {{ entry.record.land_data.cadastral_number }}
-                {% elif entry.record.property_data.tax_number_of_pp %}
-                    ІПН: {{ entry.record.property_data.tax_number_of_pp }}
-                {% else %}
-                    ID: {{ entry.record.id }}
-                {% endif %}
-            </div>
-        </div>
-        <div class="case-header-right">
-            <div class="case-problem-count">
-                розбіжностей
-                <span>{{ entry.problem_count }}</span>
-            </div>
-        </div>
-    </div>
-
-    {% if entry.problem_labels_list %}
-    <div class="pills-row">
-        {% for label in entry.problem_labels_list %}
-            <span class="pill">{{ label }}</span>
-        {% endfor %}
-    </div>
-    {% endif %}
-
-    <table class="cmp-table">
+<div class="section">
+    <div class="section-header">2. Discrepancy Analysis by Category</div>
+    {% if problem_counts %}
+    <table class="freq-table">
         <thead>
             <tr>
-                <th class="field-col">Поле</th>
-                <th class="data-col">Держгеокадастр (Земля)</th>
-                <th class="data-col">Реєстр речових прав (Майно)</th>
-                <th class="status-col">Статус</th>
+                <th>Discrepancy Type</th>
+                <th style="width: 100px; text-align: right;">Count</th>
+                <th style="width: 100px; text-align: right;">Percentage</th>
             </tr>
         </thead>
         <tbody>
-
+            {% for item in problem_counts %}
             <tr>
-                <td class="field-name">Кад. номер / ІПН</td>
-                <td class="data-cell">{{ entry.record.land_data.cadastral_number|default:"—" }}</td>
-                <td class="data-cell">{{ entry.record.property_data.tax_number_of_pp|default:"—" }}</td>
-                <td class="status-cell text-muted">—</td>
+                <td>{{ item.label }}</td>
+                <td style="text-align: right;">{{ item.count }}</td>
+                <td style="text-align: right;">{{ item.pct }}%</td>
             </tr>
-
-            <tr>
-                <td class="field-name">Власник / Платник</td>
-                {% if entry.has_land_user %}
-                <td class="data-cell highlight">{{ entry.record.land_data.land_user|default:"—" }}</td>
-                <td class="data-cell highlight">{{ entry.record.property_data.name_of_the_taxpayer|default:"—" }}</td>
-                <td class="status-cell status-err">X</td>
-                {% else %}
-                <td class="data-cell">{{ entry.record.land_data.land_user|default:"—" }}</td>
-                <td class="data-cell">{{ entry.record.property_data.name_of_the_taxpayer|default:"—" }}</td>
-                <td class="status-cell status-ok">OK</td>
-                {% endif %}
-            </tr>
-
-            <tr>
-                <td class="field-name">ЄДРПОУ / ІПН</td>
-                {% if entry.has_edrpou %}
-                <td class="data-cell highlight">{{ entry.record.land_data.edrpou_of_land_user|default:"—" }}</td>
-                <td class="data-cell highlight">{{ entry.record.property_data.tax_number_of_pp|default:"—" }}</td>
-                <td class="status-cell status-err">X</td>
-                {% else %}
-                <td class="data-cell">{{ entry.record.land_data.edrpou_of_land_user|default:"—" }}</td>
-                <td class="data-cell">{{ entry.record.property_data.tax_number_of_pp|default:"—" }}</td>
-                <td class="status-cell status-ok">OK</td>
-                {% endif %}
-            </tr>
-
-            <tr>
-                <td class="field-name">Місцезнаходження</td>
-                {% if entry.has_location %}
-                <td class="data-cell highlight">{{ entry.record.land_data.location|default:"—" }}</td>
-                <td class="data-cell highlight">{{ entry.record.property_data.address_of_the_object|default:"—" }}</td>
-                <td class="status-cell status-err">X</td>
-                {% else %}
-                <td class="data-cell">{{ entry.record.land_data.location|default:"—" }}</td>
-                <td class="data-cell">{{ entry.record.property_data.address_of_the_object|default:"—" }}</td>
-                <td class="status-cell status-ok">OK</td>
-                {% endif %}
-            </tr>
-
-            <tr>
-                <td class="field-name">Площа</td>
-                {% if entry.has_area %}
-                <td class="data-cell highlight">{{ entry.record.land_data.area|default:"—" }}</td>
-                <td class="data-cell highlight">{{ entry.record.property_data.total_area|default:"—" }}</td>
-                <td class="status-cell status-err">X</td>
-                {% else %}
-                <td class="data-cell">{{ entry.record.land_data.area|default:"—" }}</td>
-                <td class="data-cell">{{ entry.record.property_data.total_area|default:"—" }}</td>
-                <td class="status-cell status-ok">OK</td>
-                {% endif %}
-            </tr>
-
-            <tr>
-                <td class="field-name">Цільове призначення</td>
-                {% if entry.has_purpose %}
-                <td class="data-cell highlight">{{ entry.record.land_data.purpose|default:"—" }}</td>
-                <td class="data-cell highlight">{{ entry.record.property_data.type_of_object|default:"—" }}</td>
-                <td class="status-cell status-err">X</td>
-                {% else %}
-                <td class="data-cell">{{ entry.record.land_data.purpose|default:"—" }}</td>
-                <td class="data-cell">{{ entry.record.property_data.type_of_object|default:"—" }}</td>
-                <td class="status-cell status-ok">OK</td>
-                {% endif %}
-            </tr>
-
-            <tr>
-                <td class="field-name">Дата реєстрації</td>
-                {% if entry.has_date %}
-                <td class="data-cell highlight">{{ entry.record.land_data.date_of_state_registration_of_ownership|default:"—" }}</td>
-                <td class="data-cell highlight">{{ entry.record.property_data.date_of_state_registration_of_ownership|default:"—" }}</td>
-                <td class="status-cell status-err">X</td>
-                {% else %}
-                <td class="data-cell">{{ entry.record.land_data.date_of_state_registration_of_ownership|default:"—" }}</td>
-                <td class="data-cell">{{ entry.record.property_data.date_of_state_registration_of_ownership|default:"—" }}</td>
-                <td class="status-cell status-ok">OK</td>
-                {% endif %}
-            </tr>
-
+            {% endfor %}
         </tbody>
     </table>
+    {% else %}
+    <p>No systematic discrepancies were identified in the analyzed dataset.</p>
+    {% endif %}
 </div>
-{% empty %}
-<p class="text-muted" style="font-size:8pt;">Критичних об'єктів не виявлено.</p>
-{% endfor %}
 
-<div class="footer-note">
-    Звіт сформовано автоматично системою Юніфай &mdash; Аудит реєстрів ОТГ &copy; {{ date|date:"Y" }}.
+<div class="page-break"></div>
+
+<div class="section">
+    <div class="section-header">3. Top 10 High-Risk Audit Cases</div>
+    <p style="margin-bottom: 15px; font-size: 9pt; font-style: italic;">
+        The following cases represent the most significant discrepancies found during the audit process, ranked by the number of inconsistent fields.
+    </p>
+
+    {% for entry in top_10 %}
+    <div class="critical-item">
+        <div class="item-header">
+            Case #{{ forloop.counter }}: 
+            {% if entry.record.land_data.cadastral_number %}
+                Cadastral No. {{ entry.record.land_data.cadastral_number }}
+            {% elif entry.record.property_data.tax_number_of_pp %}
+                Tax ID {{ entry.record.property_data.tax_number_of_pp }}
+            {% else %}
+                ID: {{ entry.record.id }}
+            {% endif %}
+            <span style="float: right;">Issues: {{ entry.problem_count }}</span>
+        </div>
+
+        <table class="cmp-table">
+            <thead>
+                <tr>
+                    <th style="width: 25%;">Field Name</th>
+                    <th style="width: 35%;">Land Registry Data</th>
+                    <th style="width: 35%;">Property Registry Data</th>
+                    <th style="width: 5%; text-align: center;">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Owner / Entity Name</td>
+                    <td class="{% if entry.has_land_user %}highlight{% endif %}">{{ entry.record.land_data.land_user|default:"N/A" }}</td>
+                    <td class="{% if entry.has_land_user %}highlight{% endif %}">{{ entry.record.property_data.name_of_the_taxpayer|default:"N/A" }}</td>
+                    <td style="text-align: center;">{% if entry.has_land_user %}<span class="status-err">FAIL</span>{% else %}<span class="status-ok">PASS</span>{% endif %}</td>
+                </tr>
+                <tr>
+                    <td>EDRPOU / Tax ID</td>
+                    <td class="{% if entry.has_edrpou %}highlight{% endif %}">{{ entry.record.land_data.edrpou_of_land_user|default:"N/A" }}</td>
+                    <td class="{% if entry.has_edrpou %}highlight{% endif %}">{{ entry.record.property_data.tax_number_of_pp|default:"N/A" }}</td>
+                    <td style="text-align: center;">{% if entry.has_edrpou %}<span class="status-err">FAIL</span>{% else %}<span class="status-ok">PASS</span>{% endif %}</td>
+                </tr>
+                <tr>
+                    <td>Location / Address</td>
+                    <td class="{% if entry.has_location %}highlight{% endif %}">{{ entry.record.land_data.location|default:"N/A" }}</td>
+                    <td class="{% if entry.has_location %}highlight{% endif %}">{{ entry.record.property_data.address_of_the_object|default:"N/A" }}</td>
+                    <td style="text-align: center;">{% if entry.has_location %}<span class="status-err">FAIL</span>{% else %}<span class="status-ok">PASS</span>{% endif %}</td>
+                </tr>
+                <tr>
+                    <td>Area Size</td>
+                    <td class="{% if entry.has_area %}highlight{% endif %}">{{ entry.record.land_data.area|default:"N/A" }}</td>
+                    <td class="{% if entry.has_area %}highlight{% endif %}">{{ entry.record.property_data.total_area|default:"N/A" }}</td>
+                    <td style="text-align: center;">{% if entry.has_area %}<span class="status-err">FAIL</span>{% else %}<span class="status-ok">PASS</span>{% endif %}</td>
+                </tr>
+                <tr>
+                    <td>Usage Category</td>
+                    <td class="{% if entry.has_purpose %}highlight{% endif %}">{{ entry.record.land_data.purpose|default:"N/A" }}</td>
+                    <td class="{% if entry.has_purpose %}highlight{% endif %}">{{ entry.record.property_data.type_of_object|default:"N/A" }}</td>
+                    <td style="text-align: center;">{% if entry.has_purpose %}<span class="status-err">FAIL</span>{% else %}<span class="status-ok">PASS</span>{% endif %}</td>
+                </tr>
+                <tr>
+                    <td>Reg. Date</td>
+                    <td class="{% if entry.has_date %}highlight{% endif %}">{{ entry.record.land_data.date_of_state_registration_of_ownership|default:"N/A" }}</td>
+                    <td class="{% if entry.has_date %}highlight{% endif %}">{{ entry.record.property_data.date_of_state_registration_of_ownership|default:"N/A" }}</td>
+                    <td style="text-align: center;">{% if entry.has_date %}<span class="status-err">FAIL</span>{% else %}<span class="status-ok">PASS</span>{% endif %}</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="footer">
+    This document is generated automatically by Unify Audit System. Confidentiality and data protection protocols apply.
+    <br/>
+    &copy; {{ date|date:"Y" }} Unify Audit Solutions.
 </div>
 
 </body>

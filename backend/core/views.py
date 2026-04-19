@@ -192,14 +192,14 @@ class RecordDetailView(generics.RetrieveAPIView):
 
 # ────────────────────────── PDF helpers ───────────────────────────
 
-PROBLEM_LABELS_UA = {
-    'edrpou_of_land_user':                     'ЄДРПОУ землекористувача',
-    'land_user':                                'Землекористувач',
-    'location':                                 'Місцезнаходження',
-    'area':                                     'Площа',
-    'date_of_state_registration_of_ownership':  'Дата реєстрації права',
-    'share_of_ownership':                       'Частка власності',
-    'purpose':                                  'Цільове призначення',
+PROBLEM_LABELS_EN = {
+    'edrpou_of_land_user':                     'Organization ID (EDRPOU)',
+    'land_user':                                'Land User / Owner',
+    'location':                                 'Location / Address',
+    'area':                                     'Area (sq.m)',
+    'date_of_state_registration_of_ownership':  'Registration Date',
+    'share_of_ownership':                       'Ownership Share',
+    'purpose':                                  'Usage Purpose',
 }
 
 
@@ -227,7 +227,7 @@ def _build_pdf_context(report, records_qs):
         pct = round(count / total_records * 100, 1) if total_records else 0
         problem_counts.append({
             'key':       key,
-            'label':     PROBLEM_LABELS_UA.get(key, key),
+            'label':     PROBLEM_LABELS_EN.get(key, key),
             'count':     count,
             'pct':       pct,
             'bar_width': round(count / max_count * 100),
@@ -243,7 +243,7 @@ def _build_pdf_context(report, records_qs):
             'record':            rec,
             'problem_count':     len(problems),
             # Human-readable labels for the pills row
-            'problem_labels_list': [PROBLEM_LABELS_UA.get(p, p) for p in problems],
+            'problem_labels_list': [PROBLEM_LABELS_EN.get(p, p) for p in problems],
             # Pre-computed booleans — one per comparison row in the template
             'has_land_user':  'land_user' in problems,
             'has_edrpou':     'edrpou_of_land_user' in problems,
