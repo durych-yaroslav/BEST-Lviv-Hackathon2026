@@ -1,228 +1,499 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="uk">
 <head>
-    <meta charset="UTF-8">
+    <meta charset="UTF-8" />
     <style>
-        @page {
-            size: A4;
-            margin: 1.5cm;
-        }
-
         @font-face {
             font-family: 'DejaVuSans';
             src: url('{{ font_path }}');
         }
 
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
         body {
-            font-family: 'DejaVuSans', sans-serif;
-            font-size: 10pt;
-            color: #333;
-            line-height: 1.2;
+            font-family: 'DejaVuSans', 'Helvetica', sans-serif;
+            font-size: 9pt;
+            color: #1a1a2e;
+            background: #ffffff;
+            line-height: 1.45;
         }
 
-        .header {
-            text-align: center;
-            border-bottom: 1px solid #2563eb;
-            padding-bottom: 5px;
+        @page {
+            size: A4;
+            margin: 1.8cm 1.5cm 2cm 1.5cm;
+        }
+
+        .cover-header {
+            border-bottom: 3px solid #1e3a5f;
+            padding-bottom: 14px;
             margin-bottom: 20px;
         }
 
-        h1 {
-            color: #1e40af;
-            font-size: 16pt;
-            margin: 0;
+        .cover-top-row { display: table; width: 100%; }
+
+        .cover-logo-cell {
+            display: table-cell;
+            vertical-align: middle;
+            width: 60px;
         }
 
-        .report-meta {
+        .logo-box {
+            width: 44px;
+            height: 44px;
+            background: #1e3a5f;
+            border-radius: 6px;
+            display: table;
+        }
+
+        .logo-inner {
+            display: table-cell;
+            text-align: center;
+            vertical-align: middle;
+            color: #ffffff;
+            font-size: 18pt;
+            font-weight: bold;
+        }
+
+        .cover-title-cell {
+            display: table-cell;
+            vertical-align: middle;
+            padding-left: 12px;
+        }
+
+        .cover-org {
+            font-size: 7pt;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 3px;
+        }
+
+        .cover-main-title {
+            font-size: 16pt;
+            font-weight: bold;
+            color: #1e3a5f;
+        }
+
+        .cover-meta-row { display: table; width: 100%; margin-top: 10px; }
+        .cover-meta-cell { display: table-cell; width: 50%; }
+        .cover-meta-cell.right { text-align: right; }
+
+        .meta-label {
+            font-size: 6.5pt;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .meta-value {
             font-size: 8pt;
-            color: #666;
-            margin-top: 5px;
+            color: #334155;
+            font-weight: bold;
         }
 
         .section-title {
-            background-color: #f3f4f6;
-            padding: 5px;
-            border-left: 3px solid #2563eb;
-            font-weight: bold;
-            font-size: 11pt;
-            margin-top: 20px;
-            margin-bottom: 10px;
-            color: #1e3a8a;
-        }
-
-        .stats-box {
-            background-color: #eff6ff;
-            border: 1px solid #bfdbfe;
-            padding: 10px;
-            width: 100%;
-        }
-
-        .stats-table {
-            width: 100%;
-        }
-
-        .stats-table td {
-            padding: 3px;
-        }
-
-        .label {
-            font-weight: bold;
-            color: #4b5563;
-        }
-
-        .value {
-            font-weight: bold;
-            color: #1e40af;
-            text-align: right;
-        }
-
-        .problem-item {
-            border-bottom: 1px solid #cbd5e1;
-            padding: 3px 0;
-        }
-
-        .record-card {
-            margin-bottom: 25px;
-            border: 1px solid #e5e7eb;
-            padding: 10px;
-        }
-
-        .record-header {
-            font-weight: bold;
-            background-color: #f8fafc;
-            padding: 5px;
-            font-size: 10pt;
-            border-bottom: 1px solid #e2e8f0;
-        }
-
-        .comparison-table {
-            width: 100%;
-            border-collapse: collapse;
             font-size: 8pt;
-            margin-top: 5px;
+            font-weight: bold;
+            color: #1e3a5f;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            border-left: 3px solid #3b82f6;
+            padding-left: 8px;
+            margin-bottom: 10px;
+            margin-top: 18px;
         }
 
-        .comparison-table th, .comparison-table td {
-            border: 1px solid #cbd5e1;
-            padding: 5px;
+        .kpi-row { display: table; width: 100%; margin-bottom: 16px; }
+
+        .kpi-cell {
+            display: table-cell;
+            width: 25%;
+            padding-right: 8px;
+        }
+        .kpi-cell:last-child { padding-right: 0; }
+
+        .kpi-card {
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 10px 12px;
+            background: #f8fafc;
+        }
+        .kpi-card.danger  { border-color: #fca5a5; background: #fff5f5; }
+        .kpi-card.success { border-color: #86efac; background: #f0fdf4; }
+        .kpi-card.warning { border-color: #fcd34d; background: #fffbeb; }
+
+        .kpi-number {
+            font-size: 20pt;
+            font-weight: bold;
+            color: #1e3a5f;
+            line-height: 1;
+        }
+        .kpi-card.danger  .kpi-number { color: #dc2626; }
+        .kpi-card.success .kpi-number { color: #16a34a; }
+        .kpi-card.warning .kpi-number { color: #d97706; }
+
+        .kpi-label { font-size: 7pt; color: #64748b; margin-top: 3px; }
+
+        .freq-table { width: 100%; border-collapse: collapse; margin-bottom: 6px; }
+
+        .freq-table th {
+            background: #1e3a5f;
+            color: #ffffff;
+            font-size: 7pt;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            padding: 6px 10px;
             text-align: left;
         }
+        .freq-table th.right { text-align: right; }
 
-        .field-name {
-            background-color: #f8fafc;
-            width: 30%;
+        .freq-table td {
+            padding: 5px 10px;
+            font-size: 8.5pt;
+            border-bottom: 1px solid #f1f5f9;
+            vertical-align: middle;
+        }
+        .freq-table tr:nth-child(even) td { background: #f8fafc; }
+
+        .freq-bar-bg {
+            background: #e2e8f0;
+            border-radius: 3px;
+            height: 8px;
+            width: 100%;
+        }
+        .freq-bar-fill {
+            background: #3b82f6;
+            border-radius: 3px;
+            height: 8px;
+        }
+        .freq-count { font-weight: bold; color: #dc2626; text-align: right; }
+
+        .case-card {
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            margin-bottom: 14px;
+            page-break-inside: avoid;
+            overflow: hidden;
+        }
+
+        .case-header {
+            display: table;
+            width: 100%;
+            background: #1e3a5f;
+            padding: 7px 12px;
+        }
+        .case-header-left  { display: table-cell; vertical-align: middle; }
+        .case-header-right { display: table-cell; text-align: right; vertical-align: middle; }
+
+        .case-rank { font-size: 7pt; color: #93c5fd; text-transform: uppercase; letter-spacing: 0.08em; }
+        .case-id   { font-size: 9.5pt; font-weight: bold; color: #ffffff; }
+
+        .case-problem-count { font-size: 7pt; color: #fca5a5; }
+        .case-problem-count span {
+            font-size: 14pt;
+            font-weight: bold;
+            color: #f87171;
+            display: block;
+            line-height: 1;
+        }
+
+        .pills-row {
+            padding: 6px 10px;
+            background: #fff7ed;
+            border-bottom: 1px solid #fed7aa;
+        }
+        .pill {
+            display: inline-block;
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #fca5a5;
+            border-radius: 10px;
+            padding: 1px 8px;
+            font-size: 6.5pt;
+            font-weight: bold;
+            margin-right: 4px;
+            margin-bottom: 2px;
+        }
+
+        .cmp-table { width: 100%; border-collapse: collapse; font-size: 8pt; }
+
+        .cmp-table th {
+            padding: 5px 8px;
+            font-size: 6.5pt;
+            font-weight: bold;
+            color: #475569;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            border-bottom: 1px solid #e2e8f0;
+            text-align: left;
+            background: #f1f5f9;
+        }
+        .cmp-table th.field-col  { width: 24%; background: #f8fafc; }
+        .cmp-table th.data-col   { width: 35%; }
+        .cmp-table th.status-col { width: 6%; text-align: center; }
+
+        .cmp-table td {
+            padding: 5px 8px;
+            border-bottom: 1px solid #f1f5f9;
+            vertical-align: top;
+        }
+        .cmp-table td.field-name {
+            font-size: 7pt;
             font-weight: bold;
             color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            background: #f8fafc;
         }
+        .cmp-table td.data-cell  { color: #1e293b; }
+        .cmp-table td.highlight  { background: #fff1f2; color: #9f1239; font-weight: bold; }
+        .cmp-table td.status-cell { text-align: center; font-size: 8pt; font-weight: bold; }
+        .cmp-table td.status-ok  { color: #16a34a; }
+        .cmp-table td.status-err { color: #dc2626; background: #fff1f2; }
+        .cmp-table tr:last-child td { border-bottom: none; }
 
-        .highlight-error {
-            background-color: #ffcccc; 
-        }
-
-        .footer {
-            margin-top: 30px;
-            font-size: 7pt;
+        .footer-note {
+            margin-top: 20px;
+            padding-top: 8px;
+            border-top: 1px solid #e2e8f0;
+            font-size: 6.5pt;
             color: #94a3b8;
             text-align: center;
-            border-top: 1px solid #e2e8f0;
-            padding-top: 5px;
         }
+
+        .text-muted { color: #94a3b8; }
+        .page-break { page-break-before: always; }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>Analytical Report: Registry Discrepancies</h1>
-        <div class="report-meta">
-            Report ID: {{ report.id }} | Generated: {{ date|date:"d.m.Y H:i" }}
+
+<!-- COVER -->
+<div class="cover-header">
+    <div class="cover-top-row">
+        <div class="cover-logo-cell">
+            <div class="logo-box"><div class="logo-inner">У</div></div>
+        </div>
+        <div class="cover-title-cell">
+            <div class="cover-org">Юніфай — Система аудиту реєстрів ОТГ</div>
+            <div class="cover-main-title">Аналітичний звіт: Розбіжності в реєстрах</div>
+        </div>
+    </div>
+    <div class="cover-meta-row">
+        <div class="cover-meta-cell">
+            <div class="meta-label">Ідентифікатор звіту</div>
+            <div class="meta-value">{{ report.id }}</div>
+        </div>
+        <div class="cover-meta-cell right">
+            <div class="meta-label">Дата формування</div>
+            <div class="meta-value">{{ date|date:"d.m.Y" }} о {{ date|date:"H:i" }}</div>
+        </div>
+    </div>
+</div>
+
+<!-- SECTION 1: KPI -->
+<div class="section-title">1. Зведена інформація</div>
+<div class="kpi-row">
+    <div class="kpi-cell">
+        <div class="kpi-card">
+            <div class="kpi-number">{{ total_records }}</div>
+            <div class="kpi-label">Всього записів перевірено</div>
+        </div>
+    </div>
+    <div class="kpi-cell">
+        <div class="kpi-card danger">
+            <div class="kpi-number">{{ total_with_problems }}</div>
+            <div class="kpi-label">Записів з розбіжностями</div>
+        </div>
+    </div>
+    <div class="kpi-cell">
+        <div class="kpi-card success">
+            <div class="kpi-number">{{ total_clean }}</div>
+            <div class="kpi-label">Без розбіжностей</div>
+        </div>
+    </div>
+    <div class="kpi-cell">
+        <div class="kpi-card warning">
+            <div class="kpi-number">{{ problem_rate }}%</div>
+            <div class="kpi-label">Рівень розбіжностей</div>
+        </div>
+    </div>
+</div>
+
+<!-- SECTION 2: FREQUENCY -->
+<div class="section-title">2. Частота розбіжностей за типом</div>
+{% if problem_counts %}
+<table class="freq-table">
+    <thead>
+        <tr>
+            <th style="width:28%;">Тип розбіжності</th>
+            <th style="width:6%;" class="right">К-сть</th>
+            <th style="width:6%;" class="right">%</th>
+            <th>Розподіл</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for item in problem_counts %}
+        <tr>
+            <td>{{ item.label }}</td>
+            <td class="freq-count">{{ item.count }}</td>
+            <td style="text-align:right; color:#64748b;">{{ item.pct }}%</td>
+            <td>
+                <div class="freq-bar-bg">
+                    <div class="freq-bar-fill" style="width:{{ item.bar_width }}%;"></div>
+                </div>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="text-muted" style="font-size:8pt; padding:6px 0;">Розбіжностей не виявлено.</p>
+{% endif %}
+
+<!-- SECTION 3: TOP 10 -->
+<div class="section-title page-break">3. Топ-10 критичних об'єктів</div>
+<p style="font-size:7.5pt; color:#64748b; margin-bottom:12px; margin-top:-6px;">
+    Записи відсортовано за кількістю розбіжностей. Значення що відрізняються — виділені рожевим.
+</p>
+
+{% for entry in top_10 %}
+<div class="case-card">
+
+    <div class="case-header">
+        <div class="case-header-left">
+            <div class="case-rank">Об'єкт {{ forloop.counter }} з 10</div>
+            <div class="case-id">
+                {% if entry.record.land_data.cadastral_number %}
+                    Кад. №: {{ entry.record.land_data.cadastral_number }}
+                {% elif entry.record.property_data.tax_number_of_pp %}
+                    ІПН: {{ entry.record.property_data.tax_number_of_pp }}
+                {% else %}
+                    ID: {{ entry.record.id }}
+                {% endif %}
+            </div>
+        </div>
+        <div class="case-header-right">
+            <div class="case-problem-count">
+                розбіжностей
+                <span>{{ entry.problem_count }}</span>
+            </div>
         </div>
     </div>
 
-    <div class="section-title">General Statistics</div>
-    <div class="stats-box">
-        <table class="stats-table">
-            <tr>
-                <td class="label">Total records:</td>
-                <td class="value">{{ total_records }}</td>
-            </tr>
-            <tr>
-                <td class="label">Records with discrepancies:</td>
-                <td class="value">{{ total_with_problems }}</td>
-            </tr>
-        </table>
-        
-        <p style="font-weight: bold; color: #1e3a8a; margin-top: 10px; margin-bottom: 5px;">Problem Frequency:</p>
-        {% for problem, count in problem_counts %}
-        <div class="problem-item">
-            <span style="color: #4b5563;">{{ problem }}</span>
-            <span style="float: right; font-weight: bold; color: #dc2626;">{{ count }}</span>
-        </div>
-        {% empty %}
-        <div style="color: #666; font-style: italic;">No specific issues found</div>
+    {% if entry.problem_labels_list %}
+    <div class="pills-row">
+        {% for label in entry.problem_labels_list %}
+            <span class="pill">{{ label }}</span>
         {% endfor %}
     </div>
+    {% endif %}
 
-    <div class="section-title">TOP-10 Critical Discrepancies</div>
-    
-    {% for record in top_10 %}
-    <div class="record-card">
-        <div class="record-header">
-            Record #{{ forloop.counter }} | 
-            {% if record.land_data.cadastral_number %}
-                CN: {{ record.land_data.cadastral_number }}
-            {% elif record.property_data.tax_number_of_pp %}
-                TIN: {{ record.property_data.tax_number_of_pp }}
-            {% else %}
-                ID: {{ record.id|stringformat:".8s" }}
-            {% endif %}
-            <span style="float: right; color: #dc2626;">Problem count: {{ record.problems|length }}</span>
-        </div>
+    <table class="cmp-table">
+        <thead>
+            <tr>
+                <th class="field-col">Поле</th>
+                <th class="data-col">Держгеокадастр (Земля)</th>
+                <th class="data-col">Реєстр речових прав (Майно)</th>
+                <th class="status-col">Статус</th>
+            </tr>
+        </thead>
+        <tbody>
 
-        <table class="comparison-table">
-            <thead>
-                <tr>
-                    <th class="field-name">Field</th>
-                    <th>Land Registry Data</th>
-                    <th>Property Registry Data</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr class="{% if 'cadastral_number' in record.problems %}highlight-error{% endif %}">
-                    <td class="field-name">Cadastral Number</td>
-                    <td>{{ record.land_data.cadastral_number|default:"-" }}</td>
-                    <td>-</td>
-                </tr>
-                <tr class="{% if 'location' in record.problems or 'address_of_the_object' in record.problems %}highlight-error{% endif %}">
-                    <td class="field-name">Address / Location</td>
-                    <td>{{ record.land_data.location|default:"-" }}</td>
-                    <td>{{ record.property_data.address_of_the_object|default:"-" }}</td>
-                </tr>
-                <tr class="{% if 'area' in record.problems %}highlight-error{% endif %}">
-                    <td class="field-name">Area</td>
-                    <td>{{ record.land_data.area|default:"-" }}</td>
-                    <td>{{ record.property_data.area|default:"-" }}</td>
-                </tr>
-                <tr class="{% if 'purpose' in record.problems %}highlight-error{% endif %}">
-                    <td class="field-name">Purpose</td>
-                    <td>{{ record.land_data.purpose|default:"-" }}</td>
-                    <td>-</td>
-                </tr>
-                <tr class="{% if 'tax_number_of_pp' in record.problems or 'edrpou_of_land_user' in record.problems %}highlight-error{% endif %}">
-                    <td class="field-name">TIN / EDRPOU</td>
-                    <td>{{ record.land_data.edrpou_of_land_user|default:"-" }}</td>
-                    <td>{{ record.property_data.tax_number_of_pp|default:"-" }}</td>
-                </tr>
-                <tr class="{% if 'land_user' in record.problems or 'name_of_pp' in record.problems %}highlight-error{% endif %}">
-                    <td class="field-name">Owner / User</td>
-                    <td>{{ record.land_data.land_user|default:"-" }}</td>
-                    <td>{{ record.property_data.name_of_pp|default:"-" }}</td>
-                </tr>
-            </tbody>
-        </table>
-    </div>
-    {% endfor %}
+            <tr>
+                <td class="field-name">Кад. номер / ІПН</td>
+                <td class="data-cell">{{ entry.record.land_data.cadastral_number|default:"—" }}</td>
+                <td class="data-cell">{{ entry.record.property_data.tax_number_of_pp|default:"—" }}</td>
+                <td class="status-cell text-muted">—</td>
+            </tr>
 
-    <div class="footer">
-        Automatically generated by Registry Audit System. &copy; 2026
-    </div>
+            <tr>
+                <td class="field-name">Власник / Платник</td>
+                {% if entry.has_land_user %}
+                <td class="data-cell highlight">{{ entry.record.land_data.land_user|default:"—" }}</td>
+                <td class="data-cell highlight">{{ entry.record.property_data.name_of_the_taxpayer|default:"—" }}</td>
+                <td class="status-cell status-err">X</td>
+                {% else %}
+                <td class="data-cell">{{ entry.record.land_data.land_user|default:"—" }}</td>
+                <td class="data-cell">{{ entry.record.property_data.name_of_the_taxpayer|default:"—" }}</td>
+                <td class="status-cell status-ok">OK</td>
+                {% endif %}
+            </tr>
+
+            <tr>
+                <td class="field-name">ЄДРПОУ / ІПН</td>
+                {% if entry.has_edrpou %}
+                <td class="data-cell highlight">{{ entry.record.land_data.edrpou_of_land_user|default:"—" }}</td>
+                <td class="data-cell highlight">{{ entry.record.property_data.tax_number_of_pp|default:"—" }}</td>
+                <td class="status-cell status-err">X</td>
+                {% else %}
+                <td class="data-cell">{{ entry.record.land_data.edrpou_of_land_user|default:"—" }}</td>
+                <td class="data-cell">{{ entry.record.property_data.tax_number_of_pp|default:"—" }}</td>
+                <td class="status-cell status-ok">OK</td>
+                {% endif %}
+            </tr>
+
+            <tr>
+                <td class="field-name">Місцезнаходження</td>
+                {% if entry.has_location %}
+                <td class="data-cell highlight">{{ entry.record.land_data.location|default:"—" }}</td>
+                <td class="data-cell highlight">{{ entry.record.property_data.address_of_the_object|default:"—" }}</td>
+                <td class="status-cell status-err">X</td>
+                {% else %}
+                <td class="data-cell">{{ entry.record.land_data.location|default:"—" }}</td>
+                <td class="data-cell">{{ entry.record.property_data.address_of_the_object|default:"—" }}</td>
+                <td class="status-cell status-ok">OK</td>
+                {% endif %}
+            </tr>
+
+            <tr>
+                <td class="field-name">Площа</td>
+                {% if entry.has_area %}
+                <td class="data-cell highlight">{{ entry.record.land_data.area|default:"—" }}</td>
+                <td class="data-cell highlight">{{ entry.record.property_data.total_area|default:"—" }}</td>
+                <td class="status-cell status-err">X</td>
+                {% else %}
+                <td class="data-cell">{{ entry.record.land_data.area|default:"—" }}</td>
+                <td class="data-cell">{{ entry.record.property_data.total_area|default:"—" }}</td>
+                <td class="status-cell status-ok">OK</td>
+                {% endif %}
+            </tr>
+
+            <tr>
+                <td class="field-name">Цільове призначення</td>
+                {% if entry.has_purpose %}
+                <td class="data-cell highlight">{{ entry.record.land_data.purpose|default:"—" }}</td>
+                <td class="data-cell highlight">{{ entry.record.property_data.type_of_object|default:"—" }}</td>
+                <td class="status-cell status-err">X</td>
+                {% else %}
+                <td class="data-cell">{{ entry.record.land_data.purpose|default:"—" }}</td>
+                <td class="data-cell">{{ entry.record.property_data.type_of_object|default:"—" }}</td>
+                <td class="status-cell status-ok">OK</td>
+                {% endif %}
+            </tr>
+
+            <tr>
+                <td class="field-name">Дата реєстрації</td>
+                {% if entry.has_date %}
+                <td class="data-cell highlight">{{ entry.record.land_data.date_of_state_registration_of_ownership|default:"—" }}</td>
+                <td class="data-cell highlight">{{ entry.record.property_data.date_of_state_registration_of_ownership|default:"—" }}</td>
+                <td class="status-cell status-err">X</td>
+                {% else %}
+                <td class="data-cell">{{ entry.record.land_data.date_of_state_registration_of_ownership|default:"—" }}</td>
+                <td class="data-cell">{{ entry.record.property_data.date_of_state_registration_of_ownership|default:"—" }}</td>
+                <td class="status-cell status-ok">OK</td>
+                {% endif %}
+            </tr>
+
+        </tbody>
+    </table>
+</div>
+{% empty %}
+<p class="text-muted" style="font-size:8pt;">Критичних об'єктів не виявлено.</p>
+{% endfor %}
+
+<div class="footer-note">
+    Звіт сформовано автоматично системою Юніфай &mdash; Аудит реєстрів ОТГ &copy; {{ date|date:"Y" }}.
+</div>
+
 </body>
 </html>
