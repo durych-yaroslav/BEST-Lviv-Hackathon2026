@@ -79,14 +79,7 @@ export default function Login() {
               placeholder="••••••••"
               required
             />
-            <div className="mt-2 text-right">
-              <a 
-                href="#" 
-                className="text-sm font-light text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                Забули пароль?
-              </a>
-            </div>
+
           </div>
 
           <button 
