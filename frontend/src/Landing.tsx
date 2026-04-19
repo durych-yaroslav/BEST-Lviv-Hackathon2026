@@ -36,7 +36,7 @@ export default function Landing() {
         <div className="flex items-center gap-2">
           <img src="/logo.png" alt="Logo" className="w-8 h-8 md:w-10 md:h-10 object-contain" />
           <div className="text-xl md:text-2xl font-bold text-[#556B2F] tracking-tight">
-            Юніфай
+            Юніфай.ua
           </div>
         </div>
         <div className="flex items-center gap-3 md:gap-4">

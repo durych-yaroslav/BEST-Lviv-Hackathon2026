@@ -20,7 +20,7 @@ export default function Navbar({ username: propUsername }: NavbarProps) {
       <div className="flex items-center gap-2">
         <img src="/logo.png" alt="Logo" className="w-8 h-8 md:w-10 md:h-10 object-contain" />
         <div className="text-xl md:text-2xl font-bold text-[#556B2F] tracking-tight">
-          <Link to="/">Юніфай</Link>
+          <Link to="/">Юніфай.ua</Link>
         </div>
       </div>
       <div className="flex items-center gap-6">
